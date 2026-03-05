@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { redis } from "@/lib/redis";
 import { persistFinishedGameToMongo } from "@/lib/game-persistence";
+import { emitGameEnded, emitQuestionStarted, initSocketServer } from "@/lib/socket-server";
 export async function POST(req) {
     try {
+        initSocketServer();
         const { gameId, action } = await req.json();
         if (!gameId || !action) {
             return NextResponse.json({ error: "gameId and action are required" }, { status: 400 });
@@ -26,10 +28,13 @@ export async function POST(req) {
         }
         const quiz = typeof quizData === "string" ? JSON.parse(quizData) : quizData;
         let shouldPersist = false;
+        let questionStartTime = null;
         if (action === "start") {
             game.status = "started";
             game.currentQuestion = 0;
-            const questionStartTime = Date.now();
+            questionStartTime = Date.now();
+            game.startedAt = new Date(questionStartTime).toISOString();
+            await redis.set(`game:${resolvedGameId}:quizStart`, questionStartTime.toString(), { ex: 86400 });
             await redis.set(`game:${resolvedGameId}:questionStart`, questionStartTime.toString(), { ex: 86400 });
         }
         else if (action === "next") {
@@ -41,7 +46,7 @@ export async function POST(req) {
             }
             else {
                 game.currentQuestion = nextQ;
-                const questionStartTime = Date.now();
+                questionStartTime = Date.now();
                 await redis.set(`game:${resolvedGameId}:questionStart`, questionStartTime.toString(), { ex: 86400 });
             }
         }
@@ -51,6 +56,19 @@ export async function POST(req) {
             shouldPersist = true;
         }
         await redis.set(`game:${resolvedGameId}`, JSON.stringify(game), { ex: 86400 });
+        if (action === "start" || (action === "next" && game.status === "started" && Number.isInteger(game.currentQuestion))) {
+            const activeQuestion = quiz?.questions?.[game.currentQuestion];
+            const questionDurationMs = (activeQuestion?.timeLimit || 30) * 1000;
+            emitQuestionStarted({
+                gameId: resolvedGameId,
+                questionIndex: game.currentQuestion,
+                questionStartMs: questionStartTime || Date.now(),
+                questionDurationMs,
+            });
+        }
+        if (action === "end" || game.status === "finished") {
+            emitGameEnded({ gameId: resolvedGameId });
+        }
         let persistedToMongo = false;
         let persistenceError = null;
         if (shouldPersist) {

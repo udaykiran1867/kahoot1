@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from "react"
 import useSWR from "swr"
 import { Users, Play, SkipForward, Square, Copy, Check, Timer, Trophy } from "lucide-react"
+import { getGameSocket } from "@/lib/socket-client"
 
 const fetcher = (url) => fetch(url).then((r) => r.json())
 
@@ -26,12 +27,14 @@ export function GameLobby({ gameId, onEnd }) {
     { refreshInterval: 1500 }
   )
   const [copied, setCopied] = useState(false)
-  const [countdown, setCountdown] = useState(null)
-  const timerRef = useRef(null)
+  const [serverNowMs, setServerNowMs] = useState(null)
+  const [questionStartMs, setQuestionStartMs] = useState(null)
+  const [questionDurationMs, setQuestionDurationMs] = useState(null)
   const prevQuestionRef = useRef(-1)
 
   const game = data?.game || null
   const quiz = data?.quiz || null
+  const timer = data?.timer || null
 
   const currentQuestion =
     game && quiz && game.status === "started" && game.currentQuestion >= 0
@@ -42,19 +45,72 @@ export function GameLobby({ gameId, onEnd }) {
     if (game?.status !== "started" || !currentQuestion) return
     if (game.currentQuestion !== prevQuestionRef.current) {
       prevQuestionRef.current = game.currentQuestion
-      setCountdown(currentQuestion.timeLimit)
+      if (Number.isFinite(timer?.questionStartMs)) {
+        setQuestionStartMs(timer.questionStartMs)
+      }
+      if (Number.isFinite(timer?.questionDurationMs)) {
+        setQuestionDurationMs(timer.questionDurationMs)
+      }
     }
-  }, [game?.status, game?.currentQuestion, currentQuestion?.timeLimit])
+  }, [game?.status, game?.currentQuestion, currentQuestion?.timeLimit, timer?.questionStartMs, timer?.questionDurationMs])
 
   useEffect(() => {
-    if (countdown === null || countdown <= 0) return
-    timerRef.current = setTimeout(() => {
-      setCountdown((prev) => (prev !== null ? prev - 1 : null))
-    }, 1000)
-    return () => {
-      if (timerRef.current) clearTimeout(timerRef.current)
+    if (!timer) return
+    if (Number.isFinite(timer.serverNowMs)) {
+      setServerNowMs(timer.serverNowMs)
     }
-  }, [countdown])
+    if (Number.isFinite(timer.questionStartMs)) {
+      setQuestionStartMs(timer.questionStartMs)
+    }
+    if (Number.isFinite(timer.questionDurationMs)) {
+      setQuestionDurationMs(timer.questionDurationMs)
+    }
+  }, [timer?.serverNowMs, timer?.questionStartMs, timer?.questionDurationMs])
+
+  useEffect(() => {
+    let active = true
+    fetch("/api/socket/init").catch(() => null)
+    const socket = getGameSocket()
+
+    const handleConnect = () => {
+      socket.emit("join-game", { gameId, role: "admin" })
+    }
+
+    const handleServerTime = (payload) => {
+      if (!active) return
+      if (Number.isFinite(payload?.serverNowMs)) {
+        setServerNowMs(payload.serverNowMs)
+      }
+    }
+
+    const handleQuestionStarted = (payload) => {
+      if (!active || payload?.gameId !== gameId) return
+      if (Number.isFinite(payload?.serverNowMs)) {
+        setServerNowMs(payload.serverNowMs)
+      }
+      if (Number.isFinite(payload?.questionStartMs)) {
+        setQuestionStartMs(payload.questionStartMs)
+      }
+      if (Number.isFinite(payload?.questionDurationMs)) {
+        setQuestionDurationMs(payload.questionDurationMs)
+      }
+    }
+
+    socket.on("connect", handleConnect)
+    socket.on("server-time", handleServerTime)
+    socket.on("question-started", handleQuestionStarted)
+
+    if (socket.connected) {
+      handleConnect()
+    }
+
+    return () => {
+      active = false
+      socket.off("connect", handleConnect)
+      socket.off("server-time", handleServerTime)
+      socket.off("question-started", handleQuestionStarted)
+    }
+  }, [gameId])
 
   const handleCopy = useCallback(async () => {
     if (!game) return
@@ -191,8 +247,31 @@ export function GameLobby({ gameId, onEnd }) {
 
   const questionNum = game.currentQuestion + 1
   const totalQuestions = quiz.questions.length
+  const effectiveNowMs = Number.isFinite(serverNowMs)
+    ? serverNowMs
+    : Number.isFinite(timer?.serverNowMs)
+      ? timer.serverNowMs
+      : null
+  const effectiveQuestionStartMs = Number.isFinite(questionStartMs)
+    ? questionStartMs
+    : Number.isFinite(timer?.questionStartMs)
+      ? timer.questionStartMs
+      : null
+  const effectiveQuestionDurationMs = Number.isFinite(questionDurationMs)
+    ? questionDurationMs
+    : Number.isFinite(timer?.questionDurationMs)
+      ? timer.questionDurationMs
+      : currentQuestion
+        ? currentQuestion.timeLimit * 1000
+        : null
+  const remainingMs = effectiveNowMs !== null && effectiveQuestionStartMs !== null && effectiveQuestionDurationMs !== null
+    ? Math.max(0, effectiveQuestionDurationMs - (effectiveNowMs - effectiveQuestionStartMs))
+    : currentQuestion
+      ? currentQuestion.timeLimit * 1000
+      : 0
+  const countdown = Math.max(0, Math.ceil(remainingMs / 1000))
   const timePercent = currentQuestion
-    ? ((countdown || 0) / currentQuestion.timeLimit) * 100
+    ? (remainingMs / (currentQuestion.timeLimit * 1000)) * 100
     : 0
 
   return (

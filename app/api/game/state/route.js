@@ -18,7 +18,28 @@ export async function GET(req) {
                 ? JSON.parse(quizData)
                 : quizData
             : null;
-        return NextResponse.json({ game, quiz });
+        const serverNowMs = Date.now();
+        const questionStartRaw = await redis.get(`game:${gameId}:questionStart`);
+        const quizStartRaw = await redis.get(`game:${gameId}:quizStart`);
+        const questionStartMs = questionStartRaw ? parseInt(String(questionStartRaw), 10) : null;
+        const quizStartMs = quizStartRaw ? parseInt(String(quizStartRaw), 10) : null;
+        const questionDurationMs = game.status === "started" && Number.isInteger(game.currentQuestion)
+            ? ((quiz?.questions?.[game.currentQuestion]?.timeLimit || 30) * 1000)
+            : null;
+        const remainingMs = questionStartMs && questionDurationMs
+            ? Math.max(0, questionDurationMs - (serverNowMs - questionStartMs))
+            : null;
+        return NextResponse.json({
+            game,
+            quiz,
+            timer: {
+                serverNowMs,
+                quizStartMs,
+                questionStartMs,
+                questionDurationMs,
+                remainingMs,
+            },
+        });
     }
     catch (error) {
         console.error("Game state error:", error);

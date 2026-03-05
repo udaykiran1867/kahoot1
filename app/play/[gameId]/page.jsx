@@ -3,6 +3,7 @@ import { use, useEffect, useState, useCallback, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import useSWR from "swr";
 import { Timer, Trophy, CheckCircle2, XCircle, Loader2, Zap } from "lucide-react";
+import { getGameSocket } from "@/lib/socket-client";
 const fetcher = (url) => fetch(url).then((r) => r.json());
 const OPTION_COLORS = [
     { bg: "bg-game-red hover:bg-game-red/90", text: "text-foreground" },
@@ -18,10 +19,13 @@ export default function PlayPage({ params }) {
     const { data } = useSWR(`/api/game/state?gameId=${gameId}`, fetcher, { refreshInterval: 1500 });
     const game = data?.game || null;
     const quiz = data?.quiz || null;
+    const timer = data?.timer || null;
     const [answeredQuestions, setAnsweredQuestions] = useState(new Set());
     const [lastResult, setLastResult] = useState(null);
     const [submitting, setSubmitting] = useState(false);
-    const [countdown, setCountdown] = useState(null);
+    const [serverNowMs, setServerNowMs] = useState(null);
+    const [questionStartMs, setQuestionStartMs] = useState(null);
+    const [questionDurationMs, setQuestionDurationMs] = useState(null);
     const prevQuestionRef = useRef(-1);
     const currentQuestion = game && quiz && game.status === "started" && game.currentQuestion >= 0
         ? quiz.questions[game.currentQuestion] || null
@@ -31,20 +35,63 @@ export default function PlayPage({ params }) {
         if (game && game.currentQuestion !== prevQuestionRef.current) {
             prevQuestionRef.current = game.currentQuestion;
             setLastResult(null);
-            if (currentQuestion) {
-                setCountdown(currentQuestion.timeLimit);
-            }
         }
     }, [game, game?.currentQuestion, currentQuestion]);
-    // Countdown timer
+    // Hydrate timer state from server snapshot (handles refresh/reconnect)
     useEffect(() => {
-        if (countdown === null || countdown <= 0)
-            return;
-        const timer = setTimeout(() => {
-            setCountdown((prev) => (prev !== null ? prev - 1 : null));
-        }, 1000);
-        return () => clearTimeout(timer);
-    }, [countdown]);
+      if (!timer)
+        return;
+      if (Number.isFinite(timer.serverNowMs)) {
+        setServerNowMs(timer.serverNowMs);
+      }
+      if (Number.isFinite(timer.questionStartMs)) {
+        setQuestionStartMs(timer.questionStartMs);
+      }
+      if (Number.isFinite(timer.questionDurationMs)) {
+        setQuestionDurationMs(timer.questionDurationMs);
+      }
+    }, [timer?.serverNowMs, timer?.questionStartMs, timer?.questionDurationMs]);
+    // Server-time synchronization via Socket.IO
+    useEffect(() => {
+      let active = true;
+      fetch("/api/socket/init").catch(() => null);
+      const socket = getGameSocket();
+      const handleConnect = () => {
+        socket.emit("join-game", { gameId, role: "player" });
+      };
+      const handleServerTime = (payload) => {
+        if (!active)
+          return;
+        if (Number.isFinite(payload?.serverNowMs)) {
+          setServerNowMs(payload.serverNowMs);
+        }
+      };
+      const handleQuestionStarted = (payload) => {
+        if (!active || payload?.gameId !== gameId)
+          return;
+        if (Number.isFinite(payload?.serverNowMs)) {
+          setServerNowMs(payload.serverNowMs);
+        }
+        if (Number.isFinite(payload?.questionStartMs)) {
+          setQuestionStartMs(payload.questionStartMs);
+        }
+        if (Number.isFinite(payload?.questionDurationMs)) {
+          setQuestionDurationMs(payload.questionDurationMs);
+        }
+      };
+      socket.on("connect", handleConnect);
+      socket.on("server-time", handleServerTime);
+      socket.on("question-started", handleQuestionStarted);
+      if (socket.connected) {
+        handleConnect();
+      }
+      return () => {
+        active = false;
+        socket.off("connect", handleConnect);
+        socket.off("server-time", handleServerTime);
+        socket.off("question-started", handleQuestionStarted);
+      };
+    }, [gameId]);
     const handleAnswer = useCallback(async (answerIndex) => {
         if (!game || answeredQuestions.has(game.currentQuestion) || submitting)
             return;
@@ -155,8 +202,31 @@ export default function PlayPage({ params }) {
     }
     // Active question
     const hasAnswered = answeredQuestions.has(game.currentQuestion);
+    const effectiveNowMs = Number.isFinite(serverNowMs)
+      ? serverNowMs
+      : Number.isFinite(timer?.serverNowMs)
+        ? timer.serverNowMs
+        : null;
+    const effectiveQuestionStartMs = Number.isFinite(questionStartMs)
+      ? questionStartMs
+      : Number.isFinite(timer?.questionStartMs)
+        ? timer.questionStartMs
+        : null;
+    const effectiveQuestionDurationMs = Number.isFinite(questionDurationMs)
+      ? questionDurationMs
+      : Number.isFinite(timer?.questionDurationMs)
+        ? timer.questionDurationMs
+        : currentQuestion
+          ? currentQuestion.timeLimit * 1000
+          : null;
+    const remainingMs = effectiveNowMs !== null && effectiveQuestionStartMs !== null && effectiveQuestionDurationMs !== null
+      ? Math.max(0, effectiveQuestionDurationMs - (effectiveNowMs - effectiveQuestionStartMs))
+      : currentQuestion
+        ? currentQuestion.timeLimit * 1000
+        : 0;
+    const countdown = Math.max(0, Math.ceil(remainingMs / 1000));
     const timePercent = currentQuestion
-        ? ((countdown || 0) / currentQuestion.timeLimit) * 100
+      ? (remainingMs / (currentQuestion.timeLimit * 1000)) * 100
         : 0;
     return (<main className="min-h-screen flex flex-col bg-background">
       {/* Top bar */}

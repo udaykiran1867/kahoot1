@@ -29,12 +29,21 @@ export async function GET(req) {
                     finishedAt: entry.finishedAt,
                     players: entry.players || [],
                 },
-                quiz: null,
+                quiz: entry.quizTitle ? { title: entry.quizTitle } : null,
                 playerCount: (entry.players || []).length,
                 topPlayer: entry.playerResults?.[0]?.nickname || null,
                 source: "mongodb",
             };
         });
+        for (const entry of games) {
+            if (!entry.quiz?.title && entry.game?.quizId) {
+                const quizData = await redis.get(`quiz:${entry.game.quizId}`);
+                if (quizData) {
+                    const quiz = typeof quizData === "string" ? JSON.parse(quizData) : quizData;
+                    entry.quiz = { title: quiz?.title || null };
+                }
+            }
+        }
         const gameIds = await redis.smembers(`professor:${session.userId}:games`);
         for (const gid of gameIds) {
             if (persistedIds.has(gid)) {
