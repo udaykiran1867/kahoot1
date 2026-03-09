@@ -1,13 +1,12 @@
 {
-  "name": "kahoot1-workspace",
+  "name": "kahoot1-frontend",
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "echo Run \"npm run dev:backend\" and \"npm run dev:frontend\" in separate terminals",
-    "dev:frontend": "npm run dev --prefix frontend",
-    "dev:backend": "npm run dev --prefix backend",
-    "build:frontend": "npm run build --prefix frontend",
-    "build:backend": "npm run build --prefix backend"
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start -p 3000",
+    "lint": "eslint ."
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",

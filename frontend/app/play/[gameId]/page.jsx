@@ -2,7 +2,7 @@
 import { use, useEffect, useState, useCallback, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import useSWR from "swr";
-import { Timer, Trophy, CheckCircle2, XCircle, Loader2, Zap } from "lucide-react";
+import { Timer, Trophy, CheckCircle2, XCircle, Loader2, Zap, Flame, Star } from "lucide-react";
 import { getGameSocket } from "@/lib/socket-client";
 const fetcher = (url) => fetch(url).then((r) => r.json());
 const OPTION_COLORS = [
@@ -28,7 +28,12 @@ export default function PlayPage({ params }) {
     const [questionDurationMs, setQuestionDurationMs] = useState(null);
     const [imagePreviewSrc, setImagePreviewSrc] = useState("");
     const [imagePreviewZoom, setImagePreviewZoom] = useState(1);
+    const [streak, setStreak] = useState(0);
+    const [confettiBurst, setConfettiBurst] = useState(0);
+    const [scorePulseIds, setScorePulseIds] = useState([]);
     const prevQuestionRef = useRef(-1);
+    const previousScoresRef = useRef(new Map());
+    const scorePulseTimeoutRef = useRef(null);
     const currentQuestion = game && quiz && game.status === "started" && game.currentQuestion >= 0
         ? quiz.questions[game.currentQuestion] || null
         : null;
@@ -39,6 +44,34 @@ export default function PlayPage({ params }) {
             setLastResult(null);
         }
     }, [game, game?.currentQuestion, currentQuestion]);
+
+    useEffect(() => {
+      if (!game?.players)
+        return;
+      const updatedScores = new Map();
+      const changedIds = [];
+      for (const player of game.players) {
+        const previous = previousScoresRef.current.get(player.id);
+        if (previous !== undefined && previous !== player.score) {
+          changedIds.push(player.id);
+        }
+        updatedScores.set(player.id, player.score);
+      }
+      previousScoresRef.current = updatedScores;
+      if (changedIds.length > 0) {
+        setScorePulseIds(changedIds);
+        if (scorePulseTimeoutRef.current)
+          clearTimeout(scorePulseTimeoutRef.current);
+        scorePulseTimeoutRef.current = setTimeout(() => setScorePulseIds([]), 700);
+      }
+    }, [game?.players]);
+
+    useEffect(() => {
+      return () => {
+        if (scorePulseTimeoutRef.current)
+          clearTimeout(scorePulseTimeoutRef.current);
+      };
+    }, []);
     // Hydrate timer state from server snapshot (handles refresh/reconnect)
     useEffect(() => {
       if (!timer)
@@ -125,6 +158,13 @@ export default function PlayPage({ params }) {
             if (res.ok) {
                 setAnsweredQuestions((prev) => new Set(prev).add(game.currentQuestion));
                 setLastResult(result);
+              if (result.isCorrect) {
+                setStreak((value) => value + 1);
+                setConfettiBurst((value) => value + 1);
+              }
+              else {
+                setStreak(0);
+              }
             }
         }
         catch {
@@ -242,12 +282,15 @@ export default function PlayPage({ params }) {
     const timePercent = currentQuestion
       ? (remainingMs / (currentQuestion.timeLimit * 1000)) * 100
         : 0;
+    const sortedPlayers = [...game.players].sort((a, b) => b.score - a.score);
+    const myRank = sortedPlayers.findIndex((p) => p.id === playerId) + 1;
+    const myScore = sortedPlayers.find((p) => p.id === playerId)?.score || 0;
     const hasOptionImages = Array.isArray(currentQuestion?.optionImages)
       ? currentQuestion.optionImages.some((img) => typeof img === "string" && img.trim())
       : false;
-    return (<main className="min-h-screen flex flex-col bg-background">
+    return (<main className="min-h-screen flex flex-col play-arcade-bg">
       {/* Top bar */}
-      <div className="border-b bg-card px-4 py-3">
+      <div className="border-b border-white/25 bg-card/80 backdrop-blur-md px-4 py-3">
         <div className="mx-auto max-w-lg flex items-center justify-between">
           <span className="inline-flex items-center rounded-md border px-2.5 py-0.5 text-xs font-semibold bg-secondary text-secondary-foreground">
             Q{game.currentQuestion + 1}/{quiz.questions.length}
@@ -261,9 +304,24 @@ export default function PlayPage({ params }) {
       </div>
 
       <div className="flex-1 flex flex-col p-4 mx-auto w-full max-w-lg">
+        <div className="grid grid-cols-3 gap-2 mb-3">
+          <div className="rounded-xl border border-white/35 bg-card/75 backdrop-blur-md p-2 text-center shadow-sm">
+            <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Score</p>
+            <p className="text-sm font-bold tabular-nums text-foreground">{myScore.toLocaleString()}</p>
+          </div>
+          <div className="rounded-xl border border-white/35 bg-card/75 backdrop-blur-md p-2 text-center shadow-sm">
+            <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Streak</p>
+            <p className="text-sm font-bold text-foreground inline-flex items-center gap-1 justify-center"><Flame className="size-3.5 text-game-red"/>{streak}</p>
+          </div>
+          <div className="rounded-xl border border-white/35 bg-card/75 backdrop-blur-md p-2 text-center shadow-sm">
+            <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Rank</p>
+            <p className="text-sm font-bold text-foreground inline-flex items-center gap-1 justify-center"><Star className="size-3.5 text-game-yellow"/>#{myRank || "--"}</p>
+          </div>
+        </div>
+
         {/* Timer progress */}
-        <div className="relative h-1.5 w-full overflow-hidden rounded-full bg-secondary mb-4">
-          <div className="h-full w-full flex-1 bg-primary transition-all" style={{ transform: `translateX(-${100 - timePercent}%)` }}/>
+        <div className="relative h-2 w-full overflow-hidden rounded-full bg-secondary/80 mb-4">
+          <div className="timer-fill h-full transition-all duration-300" style={{ width: `${timePercent}%` }}/>
         </div>
 
         {/* Question */}
@@ -279,6 +337,13 @@ export default function PlayPage({ params }) {
             {hasAnswered && lastResult ? (
             // Show result
             <div className="flex flex-col items-center gap-4 flex-1 justify-center">
+              {lastResult.isCorrect && (<div key={confettiBurst} className="confetti-wrap" aria-hidden>
+                {Array.from({ length: 22 }).map((_, idx) => (<span key={idx} className={`confetti confetti-${idx % 5}`}
+                  style={{
+                    left: `${(idx * 17) % 100}%`,
+                    animationDelay: `${(idx % 6) * 0.06}s`,
+                  }}/>))}
+                </div>)}
                 {lastResult.isCorrect ? (<div className="flex flex-col items-center gap-2">
                     <CheckCircle2 className="size-16 text-game-green"/>
                     <h3 className="text-2xl font-bold text-foreground">Correct!</h3>
@@ -299,7 +364,7 @@ export default function PlayPage({ params }) {
               </div>) : (
             // Show answer options
             <div className={`grid gap-3 ${hasOptionImages ? "grid-cols-1" : "grid-cols-1 sm:grid-cols-2"}`}>
-                {currentQuestion.options.map((opt, i) => (<button key={i} onClick={() => handleAnswer(i)} disabled={countdown === 0} className={`flex gap-3 rounded-xl p-5 transition-all active:scale-95 ${hasOptionImages ? "items-start" : "items-center"} ${OPTION_COLORS[i].bg} ${OPTION_COLORS[i].text} disabled:opacity-50 disabled:cursor-not-allowed`}>
+                {currentQuestion.options.map((opt, i) => (<button key={i} onClick={() => handleAnswer(i)} disabled={countdown === 0} className={`arcade-answer-btn flex gap-3 rounded-xl p-5 transition-all active:scale-95 ${hasOptionImages ? "items-start" : "items-center"} ${OPTION_COLORS[i].bg} ${OPTION_COLORS[i].text} disabled:opacity-50 disabled:cursor-not-allowed`}>
                     <span className="flex items-center justify-center size-8 rounded-lg bg-background/20 font-bold text-sm">
                       {String.fromCharCode(65 + i)}
                     </span>
@@ -317,16 +382,15 @@ export default function PlayPage({ params }) {
                   </button>))}
               </div>)}
 
-            <div className="rounded-xl border bg-card text-card-foreground shadow mt-2">
+            <div className="rounded-xl border border-white/35 bg-card/80 backdrop-blur-md text-card-foreground shadow mt-2">
               <div className="flex flex-col space-y-1.5 p-4">
                 <h3 className="text-sm font-semibold leading-none tracking-tight">Live Leaderboard</h3>
               </div>
               <div className="p-4 pt-0">
                 <div className="flex flex-col gap-2">
-                  {[...game.players]
-                    .sort((a, b) => b.score - a.score)
+                  {sortedPlayers
                     .map((p, i) => (
-                      <div key={p.id} className={`flex items-center gap-3 py-1 ${p.id === playerId ? "text-primary" : ""}`}>
+                      <div key={p.id} className={`flex items-center gap-3 py-1 rounded-md px-1 ${p.id === playerId ? "text-primary" : ""} ${scorePulseIds.includes(p.id) ? "score-pop" : ""}`}>
                         <span className="flex items-center justify-center size-6 rounded-full bg-muted font-bold text-xs text-foreground">
                           {i + 1}
                         </span>
@@ -372,5 +436,70 @@ export default function PlayPage({ params }) {
                 setImagePreviewZoom((prev) => (prev > 1 ? 1 : 2));
             }}/>
         </div>)}
+
+      <style jsx>{`
+        .play-arcade-bg {
+          background:
+            radial-gradient(800px 300px at 8% -5%, rgba(133, 86, 255, 0.24), transparent 60%),
+            radial-gradient(800px 300px at 95% 0%, rgba(0, 215, 255, 0.22), transparent 60%),
+            linear-gradient(160deg, #f7f9ff 0%, #eff2ff 45%, #eefcf8 100%);
+        }
+
+        .timer-fill {
+          background: linear-gradient(90deg, #7c3aed 0%, #3b82f6 45%, #22d3ee 100%);
+          box-shadow: 0 0 10px rgba(59, 130, 246, 0.35);
+          animation: timer-flow 1s linear infinite;
+          background-size: 180% 100%;
+        }
+
+        .arcade-answer-btn:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 8px 22px rgba(30, 41, 59, 0.22);
+        }
+
+        .confetti-wrap {
+          pointer-events: none;
+          position: absolute;
+          inset: 0;
+          overflow: hidden;
+        }
+
+        .confetti {
+          position: absolute;
+          top: 8%;
+          width: 8px;
+          height: 16px;
+          border-radius: 2px;
+          opacity: 0;
+          animation: confetti-fall 1s ease-out forwards;
+        }
+
+        .confetti-0 { background: #ff4d6d; }
+        .confetti-1 { background: #00d5ff; }
+        .confetti-2 { background: #ffd60a; }
+        .confetti-3 { background: #80ed99; }
+        .confetti-4 { background: #9d4edd; }
+
+        .score-pop {
+          animation: score-pop 0.65s ease;
+        }
+
+        @keyframes timer-flow {
+          from { background-position: 0% 0; }
+          to { background-position: 180% 0; }
+        }
+
+        @keyframes confetti-fall {
+          0% { transform: translateY(-10px) rotate(0deg); opacity: 0; }
+          20% { opacity: 1; }
+          100% { transform: translateY(220px) rotate(320deg); opacity: 0; }
+        }
+
+        @keyframes score-pop {
+          0% { transform: scale(1); background: transparent; }
+          50% { transform: scale(1.03); background: rgba(124, 58, 237, 0.08); }
+          100% { transform: scale(1); background: transparent; }
+        }
+      `}</style>
     </main>);
 }
