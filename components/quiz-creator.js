@@ -21,10 +21,19 @@ const inputClass =
 
 export function QuizCreator({ onCreated, onCancel }) {
   const DEFAULT_TIME_LIMIT = 30
+  const MAX_IMAGE_SIZE_BYTES = 2 * 1024 * 1024
+  const ALLOWED_IMAGE_TYPES = ["image/png", "image/jpeg", "image/jpg", "image/webp", "image/gif"]
   const [title, setTitle] = useState("")
   const [defaultTimeLimit, setDefaultTimeLimit] = useState(String(DEFAULT_TIME_LIMIT))
   const [questions, setQuestions] = useState([
-    { text: "", options: ["", "", "", ""], correctAnswer: 0, timeLimit: String(DEFAULT_TIME_LIMIT) },
+    {
+      text: "",
+      questionImage: "",
+      options: ["", "", "", ""],
+      optionImages: ["", "", "", ""],
+      correctAnswer: 0,
+      timeLimit: String(DEFAULT_TIME_LIMIT),
+    },
   ])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
@@ -38,7 +47,14 @@ export function QuizCreator({ onCreated, onCancel }) {
   function addQuestion() {
     setQuestions([
       ...questions,
-      { text: "", options: ["", "", "", ""], correctAnswer: 0, timeLimit: defaultTimeLimit || String(DEFAULT_TIME_LIMIT) },
+      {
+        text: "",
+        questionImage: "",
+        options: ["", "", "", ""],
+        optionImages: ["", "", "", ""],
+        correctAnswer: 0,
+        timeLimit: defaultTimeLimit || String(DEFAULT_TIME_LIMIT),
+      },
     ])
   }
 
@@ -48,21 +64,98 @@ export function QuizCreator({ onCreated, onCancel }) {
   }
 
   function updateQuestion(index, field, value) {
-    const updated = [...questions]
-    if (field === "text") {
-      updated[index].text = value
-    } else if (field === "correctAnswer") {
-      updated[index].correctAnswer = value
-    } else if (field === "timeLimit") {
-      updated[index].timeLimit = value
-    }
-    setQuestions(updated)
+    setQuestions((prev) =>
+      prev.map((q, i) => {
+        if (i !== index) return q
+        if (field === "text") return { ...q, text: value }
+        if (field === "correctAnswer") return { ...q, correctAnswer: value }
+        if (field === "timeLimit") return { ...q, timeLimit: value }
+        return q
+      })
+    )
   }
 
   function updateOption(qIndex, oIndex, value) {
-    const updated = [...questions]
-    updated[qIndex].options[oIndex] = value
-    setQuestions(updated)
+    setQuestions((prev) =>
+      prev.map((q, i) => {
+        if (i !== qIndex) return q
+        const options = [...q.options]
+        options[oIndex] = value
+        return { ...q, options }
+      })
+    )
+  }
+
+  function validateImageFile(file, label) {
+    if (!file) {
+      return false
+    }
+    if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
+      setError(`${label} must be PNG, JPG, JPEG, WEBP, or GIF`)
+      return false
+    }
+    if (file.size > MAX_IMAGE_SIZE_BYTES) {
+      setError(`${label} must be smaller than 2 MB`)
+      return false
+    }
+    return true
+  }
+
+  function readFileAsDataUrl(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => resolve(typeof reader.result === "string" ? reader.result : "")
+      reader.onerror = () => reject(new Error("Failed to read image"))
+      reader.readAsDataURL(file)
+    })
+  }
+
+  async function handleQuestionImageUpload(qIndex, file) {
+    if (!validateImageFile(file, "Question image")) return
+    setError("")
+    try {
+      const dataUrl = await readFileAsDataUrl(file)
+      setQuestions((prev) =>
+        prev.map((q, i) => (i === qIndex ? { ...q, questionImage: dataUrl } : q))
+      )
+    } catch {
+      setError("Failed to process question image")
+    }
+  }
+
+  function clearQuestionImage(qIndex) {
+    setQuestions((prev) =>
+      prev.map((q, i) => (i === qIndex ? { ...q, questionImage: "" } : q))
+    )
+  }
+
+  async function handleOptionImageUpload(qIndex, oIndex, file) {
+    if (!validateImageFile(file, `Option ${OPTION_LABELS[oIndex]} image`)) return
+    setError("")
+    try {
+      const dataUrl = await readFileAsDataUrl(file)
+      setQuestions((prev) =>
+        prev.map((q, i) => {
+          if (i !== qIndex) return q
+          const optionImages = [...(q.optionImages || ["", "", "", ""])]
+          optionImages[oIndex] = dataUrl
+          return { ...q, optionImages }
+        })
+      )
+    } catch {
+      setError(`Failed to process option ${OPTION_LABELS[oIndex]} image`)
+    }
+  }
+
+  function clearOptionImage(qIndex, oIndex) {
+    setQuestions((prev) =>
+      prev.map((q, i) => {
+        if (i !== qIndex) return q
+        const optionImages = [...(q.optionImages || ["", "", "", ""])]
+        optionImages[oIndex] = ""
+        return { ...q, optionImages }
+      })
+    )
   }
 
   async function handleSave() {
@@ -89,6 +182,8 @@ export function QuizCreator({ onCreated, onCancel }) {
 
     const payloadQuestions = questions.map((q) => ({
       ...q,
+      questionImage: q.questionImage || "",
+      optionImages: Array.from({ length: 4 }, (_, i) => q.optionImages?.[i] || ""),
       timeLimit: toClampedTime(q.timeLimit),
     }))
 
@@ -195,30 +290,91 @@ export function QuizCreator({ onCreated, onCancel }) {
                 onChange={(e) => updateQuestion(qIndex, "text", e.target.value)}
                 className={inputClass}
               />
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                {q.options.map((opt, oIndex) => (
-                  <div key={oIndex} className="flex items-center gap-2">
+              <div className="flex flex-col gap-2">
+                <label className="text-xs font-medium text-muted-foreground">Question Image (optional)</label>
+                <input
+                  type="file"
+                  accept="image/png,image/jpeg,image/jpg,image/webp,image/gif"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0]
+                    if (file) {
+                      handleQuestionImageUpload(qIndex, file)
+                    }
+                    e.target.value = ""
+                  }}
+                  className={`${inputClass} h-10`}
+                />
+                {q.questionImage && (
+                  <div className="rounded-lg border p-2 flex items-center gap-3">
+                    <img
+                      src={q.questionImage}
+                      alt={`Question ${qIndex + 1} preview`}
+                      className="h-16 w-24 rounded object-cover border"
+                    />
                     <button
                       type="button"
-                      onClick={() => updateQuestion(qIndex, "correctAnswer", oIndex)}
-                      className={`shrink-0 flex items-center justify-center size-8 rounded-md text-xs font-bold transition-all ${
-                        q.correctAnswer === oIndex
-                          ? `${OPTION_COLORS[oIndex]} ring-2 ring-offset-2 ring-foreground`
-                          : "bg-muted text-muted-foreground hover:bg-muted/80"
-                      }`}
+                      className={`${buttonOutline} h-8 px-3 text-xs`}
+                      onClick={() => clearQuestionImage(qIndex)}
                     >
-                      {q.correctAnswer === oIndex ? (
-                        <Check className="size-4" />
-                      ) : (
-                        OPTION_LABELS[oIndex]
-                      )}
+                      Remove Image
                     </button>
+                  </div>
+                )}
+              </div>
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                {q.options.map((opt, oIndex) => (
+                  <div key={oIndex} className="rounded-md border p-2 space-y-2">
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => updateQuestion(qIndex, "correctAnswer", oIndex)}
+                        className={`shrink-0 flex items-center justify-center size-8 rounded-md text-xs font-bold transition-all ${
+                          q.correctAnswer === oIndex
+                            ? `${OPTION_COLORS[oIndex]} ring-2 ring-offset-2 ring-foreground`
+                            : "bg-muted text-muted-foreground hover:bg-muted/80"
+                        }`}
+                      >
+                        {q.correctAnswer === oIndex ? (
+                          <Check className="size-4" />
+                        ) : (
+                          OPTION_LABELS[oIndex]
+                        )}
+                      </button>
+                      <input
+                        placeholder={`Option ${OPTION_LABELS[oIndex]}`}
+                        value={opt}
+                        onChange={(e) => updateOption(qIndex, oIndex, e.target.value)}
+                        className={`${inputClass} flex-1`}
+                      />
+                    </div>
                     <input
-                      placeholder={`Option ${OPTION_LABELS[oIndex]}`}
-                      value={opt}
-                      onChange={(e) => updateOption(qIndex, oIndex, e.target.value)}
-                      className={`${inputClass} flex-1`}
+                      type="file"
+                      accept="image/png,image/jpeg,image/jpg,image/webp,image/gif"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0]
+                        if (file) {
+                          handleOptionImageUpload(qIndex, oIndex, file)
+                        }
+                        e.target.value = ""
+                      }}
+                      className={`${inputClass} h-10`}
                     />
+                    {q.optionImages?.[oIndex] && (
+                      <div className="rounded-md border p-2 flex items-center gap-2">
+                        <img
+                          src={q.optionImages[oIndex]}
+                          alt={`Option ${OPTION_LABELS[oIndex]} preview`}
+                          className="h-14 w-20 rounded object-cover border"
+                        />
+                        <button
+                          type="button"
+                          className={`${buttonOutline} h-8 px-3 text-xs`}
+                          onClick={() => clearOptionImage(qIndex, oIndex)}
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>

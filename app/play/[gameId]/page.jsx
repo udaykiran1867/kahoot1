@@ -26,6 +26,8 @@ export default function PlayPage({ params }) {
     const [serverNowMs, setServerNowMs] = useState(null);
     const [questionStartMs, setQuestionStartMs] = useState(null);
     const [questionDurationMs, setQuestionDurationMs] = useState(null);
+    const [imagePreviewSrc, setImagePreviewSrc] = useState("");
+    const [imagePreviewZoom, setImagePreviewZoom] = useState(1);
     const prevQuestionRef = useRef(-1);
     const currentQuestion = game && quiz && game.status === "started" && game.currentQuestion >= 0
         ? quiz.questions[game.currentQuestion] || null
@@ -92,6 +94,18 @@ export default function PlayPage({ params }) {
         socket.off("question-started", handleQuestionStarted);
       };
     }, [gameId]);
+    useEffect(() => {
+      if (!imagePreviewSrc)
+        return;
+      const handleKeyDown = (event) => {
+        if (event.key === "Escape") {
+          setImagePreviewSrc("");
+          setImagePreviewZoom(1);
+        }
+      };
+      window.addEventListener("keydown", handleKeyDown);
+      return () => window.removeEventListener("keydown", handleKeyDown);
+    }, [imagePreviewSrc]);
     const handleAnswer = useCallback(async (answerIndex) => {
         if (!game || answeredQuestions.has(game.currentQuestion) || submitting)
             return;
@@ -228,6 +242,9 @@ export default function PlayPage({ params }) {
     const timePercent = currentQuestion
       ? (remainingMs / (currentQuestion.timeLimit * 1000)) * 100
         : 0;
+    const hasOptionImages = Array.isArray(currentQuestion?.optionImages)
+      ? currentQuestion.optionImages.some((img) => typeof img === "string" && img.trim())
+      : false;
     return (<main className="min-h-screen flex flex-col bg-background">
       {/* Top bar */}
       <div className="border-b bg-card px-4 py-3">
@@ -254,6 +271,10 @@ export default function PlayPage({ params }) {
             <h2 className="text-xl font-bold text-center text-foreground text-balance py-4">
               {currentQuestion.text}
             </h2>
+            {currentQuestion.questionImage && (<img
+              src={currentQuestion.questionImage}
+              alt="Question visual"
+              className="w-full max-h-72 rounded-lg border object-contain bg-muted/30"/>) }
 
             {hasAnswered && lastResult ? (
             // Show result
@@ -277,12 +298,22 @@ export default function PlayPage({ params }) {
                 <p className="text-muted-foreground">Submitting...</p>
               </div>) : (
             // Show answer options
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                {currentQuestion.options.map((opt, i) => (<button key={i} onClick={() => handleAnswer(i)} disabled={countdown === 0} className={`flex items-center gap-3 rounded-xl p-5 transition-all active:scale-95 ${OPTION_COLORS[i].bg} ${OPTION_COLORS[i].text} disabled:opacity-50 disabled:cursor-not-allowed`}>
+            <div className={`grid gap-3 ${hasOptionImages ? "grid-cols-1" : "grid-cols-1 sm:grid-cols-2"}`}>
+                {currentQuestion.options.map((opt, i) => (<button key={i} onClick={() => handleAnswer(i)} disabled={countdown === 0} className={`flex gap-3 rounded-xl p-5 transition-all active:scale-95 ${hasOptionImages ? "items-start" : "items-center"} ${OPTION_COLORS[i].bg} ${OPTION_COLORS[i].text} disabled:opacity-50 disabled:cursor-not-allowed`}>
                     <span className="flex items-center justify-center size-8 rounded-lg bg-background/20 font-bold text-sm">
                       {String.fromCharCode(65 + i)}
                     </span>
-                    <span className="font-medium text-left flex-1">{opt}</span>
+                    {currentQuestion.optionImages?.[i] && (<img
+                      src={currentQuestion.optionImages[i]}
+                      alt={`Option ${String.fromCharCode(65 + i)} visual`}
+                      className="h-24 w-36 shrink-0 rounded object-contain bg-white/15 border border-white/30 cursor-zoom-in"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setImagePreviewSrc(currentQuestion.optionImages[i]);
+                        setImagePreviewZoom(1);
+                      }}/>) }
+                    <span className="font-medium text-left flex-1 break-words">{opt}</span>
                   </button>))}
               </div>)}
 
@@ -316,5 +347,30 @@ export default function PlayPage({ params }) {
             </div>
           </div>)}
       </div>
+      {imagePreviewSrc && (<div className="fixed inset-0 z-50 bg-black/80 p-4 flex items-center justify-center" onClick={() => {
+            setImagePreviewSrc("");
+            setImagePreviewZoom(1);
+        }}>
+          <button
+            type="button"
+            aria-label="Close image preview"
+            className="absolute top-4 right-4 h-9 w-9 rounded-full bg-white/15 text-white text-xl leading-none hover:bg-white/25"
+            onClick={(e) => {
+                e.stopPropagation();
+                setImagePreviewSrc("");
+                setImagePreviewZoom(1);
+            }}>
+            x
+          </button>
+          <img
+            src={imagePreviewSrc}
+            alt="Option preview"
+            className={`max-h-[90vh] max-w-[90vw] rounded-lg border border-white/20 bg-black object-contain transition-transform duration-200 ${imagePreviewZoom > 1 ? "cursor-zoom-out" : "cursor-zoom-in"}`}
+            style={{ transform: `scale(${imagePreviewZoom})` }}
+            onClick={(e) => {
+                e.stopPropagation();
+                setImagePreviewZoom((prev) => (prev > 1 ? 1 : 2));
+            }}/>
+        </div>)}
     </main>);
 }

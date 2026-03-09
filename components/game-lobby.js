@@ -30,6 +30,8 @@ export function GameLobby({ gameId, onEnd }) {
   const [serverNowMs, setServerNowMs] = useState(null)
   const [questionStartMs, setQuestionStartMs] = useState(null)
   const [questionDurationMs, setQuestionDurationMs] = useState(null)
+  const [imagePreviewSrc, setImagePreviewSrc] = useState("")
+  const [imagePreviewZoom, setImagePreviewZoom] = useState(1)
   const prevQuestionRef = useRef(-1)
 
   const game = data?.game || null
@@ -111,6 +113,20 @@ export function GameLobby({ gameId, onEnd }) {
       socket.off("question-started", handleQuestionStarted)
     }
   }, [gameId])
+
+  useEffect(() => {
+    if (!imagePreviewSrc) return
+
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") {
+        setImagePreviewSrc("")
+        setImagePreviewZoom(1)
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown)
+    return () => window.removeEventListener("keydown", handleKeyDown)
+  }, [imagePreviewSrc])
 
   const handleCopy = useCallback(async () => {
     if (!game) return
@@ -273,6 +289,9 @@ export function GameLobby({ gameId, onEnd }) {
   const timePercent = currentQuestion
     ? (remainingMs / (currentQuestion.timeLimit * 1000)) * 100
     : 0
+  const hasOptionImages = Array.isArray(currentQuestion?.optionImages)
+    ? currentQuestion.optionImages.some((img) => typeof img === "string" && img.trim())
+    : false
 
   return (
     <div className="flex flex-col gap-6">
@@ -311,23 +330,41 @@ export function GameLobby({ gameId, onEnd }) {
                 {countdown ?? 0}s
               </div>
             </div>
+            {currentQuestion.questionImage && (
+              <img
+                src={currentQuestion.questionImage}
+                alt="Question visual"
+                className="w-full max-h-72 rounded-lg border object-contain bg-muted/30"
+              />
+            )}
             <div className="relative h-2 w-full overflow-hidden rounded-full bg-secondary">
               <div className="h-full w-full flex-1 bg-primary transition-all" style={{ transform: `translateX(-${100 - timePercent}%)` }} />
             </div>
           </div>
           <div className="p-6 pt-0">
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className={`grid gap-3 ${hasOptionImages ? "grid-cols-1" : "grid-cols-1 sm:grid-cols-2"}`}>
               {currentQuestion.options.map((opt, i) => (
                 <div
                   key={i}
-                  className={`flex items-center gap-3 rounded-lg p-4 ${OPTION_COLORS[i]} ${
+                  className={`flex gap-3 rounded-lg p-4 ${hasOptionImages ? "items-start" : "items-center"} ${OPTION_COLORS[i]} ${
                     i === currentQuestion.correctAnswer ? "ring-2 ring-foreground" : ""
                   }`}
                 >
                   <span className="flex items-center justify-center size-8 rounded-md bg-white/20 font-bold text-sm text-white">
                     {String.fromCharCode(65 + i)}
                   </span>
-                  <span className="font-medium text-white">{opt}</span>
+                  {currentQuestion.optionImages?.[i] && (
+                    <img
+                      src={currentQuestion.optionImages[i]}
+                      alt={`Option ${String.fromCharCode(65 + i)} visual`}
+                      className="h-24 w-36 shrink-0 rounded object-contain bg-white/15 border border-white/30 cursor-zoom-in"
+                      onClick={() => {
+                        setImagePreviewSrc(currentQuestion.optionImages[i])
+                        setImagePreviewZoom(1)
+                      }}
+                    />
+                  )}
+                  <span className="font-medium text-white break-words flex-1">{opt}</span>
                   {i === currentQuestion.correctAnswer && (
                     <Check className="size-5 ml-auto text-white" />
                   )}
@@ -361,6 +398,41 @@ export function GameLobby({ gameId, onEnd }) {
           </div>
         </div>
       </div>
+
+      {imagePreviewSrc && (
+        <div
+          className="fixed inset-0 z-50 bg-black/80 p-4 flex items-center justify-center"
+          onClick={() => {
+            setImagePreviewSrc("")
+            setImagePreviewZoom(1)
+          }}
+        >
+          <button
+            type="button"
+            aria-label="Close image preview"
+            className="absolute top-4 right-4 h-9 w-9 rounded-full bg-white/15 text-white text-xl leading-none hover:bg-white/25"
+            onClick={(e) => {
+              e.stopPropagation()
+              setImagePreviewSrc("")
+              setImagePreviewZoom(1)
+            }}
+          >
+            x
+          </button>
+          <img
+            src={imagePreviewSrc}
+            alt="Option preview"
+            className={`max-h-[90vh] max-w-[90vw] rounded-lg border border-white/20 bg-black object-contain transition-transform duration-200 ${
+              imagePreviewZoom > 1 ? "cursor-zoom-out" : "cursor-zoom-in"
+            }`}
+            style={{ transform: `scale(${imagePreviewZoom})` }}
+            onClick={(e) => {
+              e.stopPropagation()
+              setImagePreviewZoom((prev) => (prev > 1 ? 1 : 2))
+            }}
+          />
+        </div>
+      )}
     </div>
   )
 }

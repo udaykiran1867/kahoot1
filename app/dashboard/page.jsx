@@ -12,6 +12,16 @@ const buttonOutline = `${buttonBase} border border-input bg-background shadow-sm
 const buttonGhost = `${buttonBase} hover:bg-accent hover:text-accent-foreground shadow-none`;
 const buttonSm = "h-8 rounded-md px-3 text-xs";
 const fetcher = (url) => fetch(url, { cache: "no-store" }).then((r) => r.json());
+
+function escapeHtml(value) {
+  return String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 export default function DashboardPage() {
     const router = useRouter();
     const { data: authData, isLoading: authLoading } = useSWR("/api/auth/me", fetcher);
@@ -45,20 +55,51 @@ export default function DashboardPage() {
         }
     }, []);
     const handleExportQuiz = useCallback((quiz) => {
-        const exportData = {
-            title: quiz.title,
-            questions: quiz.questions.map((q) => ({
-                text: q.text,
-                options: q.options,
-                correctAnswer: q.correctAnswer,
-                timeLimit: q.timeLimit,
-            })),
-        };
-        const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: "application/json" });
+        const questionBlocks = quiz.questions
+            .map((q, qIndex) => {
+            const questionImage = q.questionImage
+                ? `<div style=\"margin:10px 0;\"><img src=\"${q.questionImage}\" style=\"max-width:560px;max-height:280px;border:1px solid #ddd;border-radius:8px;object-fit:contain;\" /></div>`
+                : "";
+            const optionRows = (q.options || [])
+                .map((opt, oIndex) => {
+                const optionImage = q.optionImages?.[oIndex]
+                    ? `<img src=\"${q.optionImages[oIndex]}\" style=\"max-width:180px;max-height:120px;border:1px solid #ddd;border-radius:6px;object-fit:contain;vertical-align:middle;margin-left:8px;\" />`
+                    : "";
+                const isCorrect = q.correctAnswer === oIndex;
+                return `<li style=\"margin:8px 0;${isCorrect ? "font-weight:700;" : ""}\">${escapeHtml(opt)} ${optionImage} ${isCorrect ? "(Correct)" : ""}</li>`;
+            })
+                .join("");
+            return `
+          <div style="margin:20px 0;padding:14px;border:1px solid #e2e2e2;border-radius:10px;">
+            <h3 style="margin:0 0 8px 0;font-size:18px;">Q${qIndex + 1}. ${escapeHtml(q.text)}</h3>
+            <p style="margin:0 0 8px 0;color:#444;">Time Limit: ${q.timeLimit || 30}s</p>
+            ${questionImage}
+            <ol type="A" style="padding-left:22px;margin:10px 0 0 0;">
+              ${optionRows}
+            </ol>
+          </div>
+        `;
+        })
+            .join("");
+        const htmlDoc = `
+      <!doctype html>
+      <html>
+        <head>
+          <meta charset="utf-8" />
+          <title>${escapeHtml(quiz.title)}</title>
+        </head>
+        <body style="font-family:Calibri,Arial,sans-serif;padding:20px;color:#111;">
+          <h1 style="margin-bottom:4px;">${escapeHtml(quiz.title)}</h1>
+          <p style="margin-top:0;color:#666;">Exported on ${new Date().toLocaleString()}</p>
+          ${questionBlocks}
+        </body>
+      </html>
+    `;
+        const blob = new Blob([htmlDoc], { type: "application/msword;charset=utf-8" });
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
-        a.download = `${quiz.title.replace(/\s+/g, "-").toLowerCase()}.json`;
+        a.download = `${quiz.title.replace(/\s+/g, "-").toLowerCase()}.doc`;
         a.click();
         URL.revokeObjectURL(url);
     }, []);
