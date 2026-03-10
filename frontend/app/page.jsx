@@ -41,12 +41,6 @@ export default function HomePage() {
         }
     }
     return (<main className="student-arcade min-h-screen flex flex-col items-center justify-center p-4">
-      <div className="arcade-lights" aria-hidden>
-        <span className="light light-1"/>
-        <span className="light light-2"/>
-        <span className="light light-3"/>
-      </div>
-
       <div className="flex flex-col items-center gap-3 mb-10 relative z-10">
         <div className="flex items-center gap-3">
           <div className="rounded-xl bg-primary p-3 logo-bob">
@@ -125,45 +119,12 @@ export default function HomePage() {
         .student-arcade {
           position: relative;
           overflow: hidden;
-          background:
-            radial-gradient(800px 360px at 8% -5%, rgba(157, 78, 221, 0.35), transparent 60%),
-            radial-gradient(860px 380px at 95% 8%, rgba(72, 149, 239, 0.3), transparent 62%),
-            radial-gradient(700px 300px at 50% 120%, rgba(58, 12, 163, 0.28), transparent 60%),
-            linear-gradient(145deg, #12163a 0%, #1f2761 45%, #161a43 100%);
+          background: transparent;
         }
-
-        .student-arcade::before {
-          content: "";
-          position: absolute;
-          inset: 0;
-          pointer-events: none;
-          background: radial-gradient(circle, rgba(255,255,255,0.17) 1px, transparent 1px);
-          background-size: 22px 22px;
-          opacity: 0.24;
-        }
-
-        .arcade-lights {
-          position: absolute;
-          inset: 0;
-          pointer-events: none;
-        }
-
-        .light {
-          position: absolute;
-          width: 230px;
-          height: 230px;
-          border-radius: 999px;
-          filter: blur(26px);
-          animation: drift 7s ease-in-out infinite;
-        }
-
-        .light-1 { top: 8%; left: 10%; background: rgba(255, 0, 255, 0.26); }
-        .light-2 { top: 20%; right: 8%; background: rgba(0, 246, 255, 0.22); animation-delay: 1s; }
-        .light-3 { bottom: -8%; left: 40%; background: rgba(118, 255, 3, 0.17); animation-delay: 2s; }
 
         .title-glow {
-          text-shadow: 0 0 18px rgba(87, 117, 255, 0.55);
-          color: #f6f8ff;
+          text-shadow: 0 0 14px rgba(87, 117, 255, 0.22);
+          color: #1e293b;
         }
 
         .logo-bob { animation: bob 2.2s ease-in-out infinite; }
@@ -187,10 +148,6 @@ export default function HomePage() {
           50% { transform: translateY(-4px); }
         }
 
-        @keyframes drift {
-          0%,100% { transform: translateY(0px) translateX(0px); }
-          50% { transform: translateY(-12px) translateX(8px); }
-        }
       `}</style>
     </main>);
 }

@@ -176,7 +176,7 @@ export default function PlayPage({ params }) {
     }, [game, gameId, playerId, answeredQuestions, submitting]);
     // Loading state
     if (!game || !quiz) {
-        return (<main className="min-h-screen flex flex-col items-center justify-center bg-background p-4">
+        return (<main className="min-h-screen flex flex-col items-center justify-center p-4">
         <div className="flex flex-col items-center gap-3">
           <div className="size-8 rounded-full border-2 border-primary border-t-transparent animate-spin"/>
           <p className="text-muted-foreground">Connecting to game...</p>
@@ -185,7 +185,7 @@ export default function PlayPage({ params }) {
     }
     // Waiting for game to start
     if (game.status === "waiting") {
-        return (<main className="min-h-screen flex flex-col items-center justify-center bg-background p-4">
+        return (<main className="min-h-screen flex flex-col items-center justify-center p-4">
         <div className="w-full max-w-sm text-center rounded-xl border bg-card text-card-foreground shadow">
           <div className="flex flex-col space-y-1.5 p-6">
             <div className="flex justify-center mb-4">
@@ -213,7 +213,7 @@ export default function PlayPage({ params }) {
         const sorted = [...game.players].sort((a, b) => b.score - a.score);
         const myRank = sorted.findIndex((p) => p.id === playerId) + 1;
         const myPlayer = sorted.find((p) => p.id === playerId);
-        return (<main className="min-h-screen flex flex-col items-center justify-center bg-background p-4">
+        return (<main className="min-h-screen flex flex-col items-center justify-center p-4">
         <div className="flex flex-col gap-6 w-full max-w-sm">
           <div className="text-center">
             <h2 className="text-3xl font-bold text-foreground">Game Over!</h2>
@@ -439,10 +439,7 @@ export default function PlayPage({ params }) {
 
       <style jsx>{`
         .play-arcade-bg {
-          background:
-            radial-gradient(800px 300px at 8% -5%, rgba(133, 86, 255, 0.24), transparent 60%),
-            radial-gradient(800px 300px at 95% 0%, rgba(0, 215, 255, 0.22), transparent 60%),
-            linear-gradient(160deg, #f7f9ff 0%, #eff2ff 45%, #eefcf8 100%);
+          background: transparent;
         }
 
         .timer-fill {

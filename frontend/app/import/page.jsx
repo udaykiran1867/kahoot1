@@ -14,7 +14,7 @@ export default function ImportPage() {
         router.back();
     }
     if (mode === "excel") {
-        return (<div className="min-h-screen bg-linear-to-br from-slate-50 to-slate-100 p-4">
+      return (<div className="min-h-screen p-4">
         <div className="max-w-4xl mx-auto pt-8">
           <button onClick={() => setMode("choose")} className={`${buttonGhost} mb-6`}>
             <ArrowLeft className="w-4 h-4 mr-2"/>
@@ -27,7 +27,7 @@ export default function ImportPage() {
       </div>);
     }
     if (mode === "manual") {
-        return (<div className="min-h-screen bg-linear-to-br from-slate-50 to-slate-100 p-4">
+      return (<div className="min-h-screen p-4">
         <div className="max-w-4xl mx-auto pt-8">
           <button onClick={() => setMode("choose")} className={`${buttonGhost} mb-6`}>
             <ArrowLeft className="w-4 h-4 mr-2"/>
@@ -40,7 +40,7 @@ export default function ImportPage() {
       </div>);
     }
     // Choose mode
-    return (<div className="min-h-screen bg-linear-to-br from-slate-50 to-slate-100 p-4">
+    return (<div className="min-h-screen p-4">
       <div className="max-w-4xl mx-auto pt-16">
         <div className="mb-8">
           <button onClick={handleBackToDashboard} className={buttonGhost}>

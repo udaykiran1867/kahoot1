@@ -168,11 +168,7 @@ export default function DashboardPage() {
     .toUpperCase();
 
   return (
-    <main className="min-h-screen bg-gradient-to-b from-indigo-50 via-sky-50 to-cyan-50">
-      <div className="pointer-events-none fixed inset-0 -z-10 overflow-hidden" aria-hidden>
-        <div className="absolute -top-28 -left-16 h-80 w-80 rounded-full bg-fuchsia-300/35 blur-3xl" />
-        <div className="absolute top-14 right-0 h-96 w-96 rounded-full bg-cyan-300/30 blur-3xl" />
-      </div>
+    <main className="min-h-screen">
 
       <header className="sticky top-0 z-20 border-b border-white/50 bg-white/70 backdrop-blur-xl">
         <div className="mx-auto max-w-6xl px-4 py-3 flex items-center justify-between gap-3">

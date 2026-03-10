@@ -53,12 +53,7 @@ export default function SignupPage() {
   }
 
   return (
-    <main className="relative min-h-screen flex items-center justify-center overflow-hidden bg-gradient-to-br from-[#2b1b80] via-[#2536a5] to-[#0f9ccf] p-4">
-      <div className="pointer-events-none absolute inset-0 opacity-35" aria-hidden>
-        <div className="absolute -top-24 -left-16 h-72 w-72 rounded-full bg-fuchsia-400/50 blur-3xl" />
-        <div className="absolute top-24 -right-20 h-80 w-80 rounded-full bg-cyan-300/40 blur-3xl" />
-        <div className="absolute -bottom-20 left-1/2 h-72 w-72 -translate-x-1/2 rounded-full bg-indigo-300/45 blur-3xl" />
-      </div>
+    <main className="relative min-h-screen flex items-center justify-center overflow-hidden p-4">
 
       <div className="relative z-10 w-full max-w-md rounded-3xl border border-white/30 bg-white/15 p-1 shadow-2xl backdrop-blur-xl">
         <div className="rounded-[22px] bg-white/90 px-6 py-7 text-card-foreground">
