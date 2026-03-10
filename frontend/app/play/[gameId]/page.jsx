@@ -2,7 +2,7 @@
 import { use, useEffect, useState, useCallback, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import useSWR from "swr";
-import { Timer, Trophy, CheckCircle2, XCircle, Loader2, Zap, Flame, Star } from "lucide-react";
+import { Timer, Trophy, Loader2, Zap, Flame, Star } from "lucide-react";
 import { getGameSocket } from "@/lib/socket-client";
 const fetcher = (url) => fetch(url).then((r) => r.json());
 const OPTION_COLORS = [
@@ -29,7 +29,6 @@ export default function PlayPage({ params }) {
     const [imagePreviewSrc, setImagePreviewSrc] = useState("");
     const [imagePreviewZoom, setImagePreviewZoom] = useState(1);
     const [streak, setStreak] = useState(0);
-    const [confettiBurst, setConfettiBurst] = useState(0);
     const [scorePulseIds, setScorePulseIds] = useState([]);
     const prevQuestionRef = useRef(-1);
     const previousScoresRef = useRef(new Map());
@@ -160,7 +159,6 @@ export default function PlayPage({ params }) {
                 setLastResult(result);
               if (result.isCorrect) {
                 setStreak((value) => value + 1);
-                setConfettiBurst((value) => value + 1);
               }
               else {
                 setStreak(0);
@@ -335,28 +333,15 @@ export default function PlayPage({ params }) {
               className="w-full max-h-72 rounded-lg border object-contain bg-muted/30"/>) }
 
             {hasAnswered && lastResult ? (
-            // Show result
+            // Show submission confirmation
             <div className="flex flex-col items-center gap-4 flex-1 justify-center">
-              {lastResult.isCorrect && (<div key={confettiBurst} className="confetti-wrap" aria-hidden>
-                {Array.from({ length: 22 }).map((_, idx) => (<span key={idx} className={`confetti confetti-${idx % 5}`}
-                  style={{
-                    left: `${(idx * 17) % 100}%`,
-                    animationDelay: `${(idx % 6) * 0.06}s`,
-                  }}/>))}
-                </div>)}
-                {lastResult.isCorrect ? (<div className="flex flex-col items-center gap-2">
-                    <CheckCircle2 className="size-16 text-game-green"/>
-                    <h3 className="text-2xl font-bold text-foreground">Correct!</h3>
-                    <p className="text-lg text-primary font-bold">+{lastResult.score} points</p>
-                  </div>) : (<div className="flex flex-col items-center gap-2">
-                    <XCircle className="size-16 text-game-red"/>
-                    <h3 className="text-2xl font-bold text-foreground">Wrong</h3>
-                    <p className="text-sm text-muted-foreground">
-                      Correct: Option {String.fromCharCode(65 + lastResult.correctAnswer)}
-                    </p>
-                  </div>)}
-                <p className="text-muted-foreground">
-                  Total: {lastResult.totalScore.toLocaleString()} pts
+                <h3 className="text-2xl font-bold text-foreground text-center">
+                  Your answer has been submitted
+                </h3>
+                <p className="text-base text-muted-foreground">
+                  Reaction time: {Number.isFinite(lastResult.reactionTimeMs)
+                    ? `${(lastResult.reactionTimeMs / 1000).toFixed(2)}s`
+                    : "--"}
                 </p>
               </div>) : submitting ? (<div className="flex flex-col items-center gap-3 flex-1 justify-center">
                 <Loader2 className="size-8 animate-spin text-primary"/>

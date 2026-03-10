@@ -36,6 +36,15 @@ const PlayerSchema = new Schema(
   { _id: false }
 )
 
+const QuestionSnapshotSchema = new Schema(
+  {
+    questionIndex: { type: Number, required: true },
+    text: { type: String, default: "" },
+    options: { type: [String], default: [] },
+  },
+  { _id: false }
+)
+
 const gameResultSchema = new Schema(
   {
     gameId: { type: String, required: true, unique: true, index: true },
@@ -49,6 +58,7 @@ const gameResultSchema = new Schema(
     finishedAt: { type: Date, required: true },
     players: { type: [PlayerSchema], default: [] },
     playerResults: { type: [PlayerResultSchema], default: [] },
+    questionSnapshots: { type: [QuestionSnapshotSchema], default: [] },
   },
   { timestamps: true }
 )

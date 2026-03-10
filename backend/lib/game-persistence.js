@@ -63,6 +63,11 @@ export async function persistFinishedGameToMongo(game, quiz = null) {
       score: player.score || 0,
       joinedAt: new Date(player.joinedAt || Date.now()),
     })),
+    questionSnapshots: (quiz?.questions || []).map((question, questionIndex) => ({
+      questionIndex,
+      text: question?.text || "",
+      options: Array.isArray(question?.options) ? question.options : [],
+    })),
     playerResults: playerResults.map((result) => ({
       ...result,
       answers: result.answers.map((answer) => ({

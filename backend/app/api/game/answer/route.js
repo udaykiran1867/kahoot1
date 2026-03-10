@@ -51,6 +51,7 @@ export async function POST(req) {
             success: true,
             isCorrect,
             score,
+            reactionTimeMs: responseTimeMs,
             correctAnswer: question.correctAnswer,
             totalScore: game.players[playerIndex]?.score || 0,
         });
