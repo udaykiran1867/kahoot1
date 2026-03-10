@@ -4,7 +4,6 @@ import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import useSWR, { mutate } from "swr";
 import {
-  Zap,
   Plus,
   LogOut,
   History,
@@ -173,8 +172,8 @@ export default function DashboardPage() {
       <header className="sticky top-0 z-20 border-b border-white/50 bg-white/70 backdrop-blur-xl">
         <div className="mx-auto max-w-6xl px-4 py-3 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2">
-            <div className="rounded-xl bg-gradient-to-br from-violet-600 to-cyan-500 p-2 shadow-lg shadow-indigo-500/30">
-              <Zap className="size-4 text-white" />
+            <div className="size-8 overflow-hidden rounded-full bg-white p-0.5 shadow-lg shadow-slate-300/40">
+              <img src="/sahyadri.png" alt="Sahyadri logo" className="h-full w-full object-cover" />
             </div>
             <span className="font-bold tracking-tight text-slate-900">QuizBlitz</span>
           </div>

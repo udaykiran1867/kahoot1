@@ -2,7 +2,7 @@
 import { use, useEffect, useState, useCallback, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import useSWR from "swr";
-import { Timer, Trophy, Loader2, Zap, Flame, Star } from "lucide-react";
+import { Timer, Trophy, Loader2, Flame, Star } from "lucide-react";
 import { getGameSocket } from "@/lib/socket-client";
 const fetcher = (url) => fetch(url).then((r) => r.json());
 const OPTION_COLORS = [
@@ -187,8 +187,8 @@ export default function PlayPage({ params }) {
         <div className="w-full max-w-sm text-center rounded-xl border bg-card text-card-foreground shadow">
           <div className="flex flex-col space-y-1.5 p-6">
             <div className="flex justify-center mb-4">
-              <div className="rounded-full bg-primary/10 p-4">
-                <Zap className="size-8 text-primary animate-pulse"/>
+              <div className="size-16 overflow-hidden rounded-full bg-white p-1 shadow-lg shadow-slate-300/40">
+                <img src="/sahyadri.png" alt="Sahyadri logo" className="h-full w-full object-cover animate-pulse" />
               </div>
             </div>
             <h3 className="text-xl font-semibold leading-none tracking-tight">

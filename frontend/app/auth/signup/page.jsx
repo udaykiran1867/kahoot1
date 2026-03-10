@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Zap, Brain, CircleHelp } from "lucide-react";
+import { Brain, CircleHelp } from "lucide-react";
 
 const buttonBase =
   "inline-flex items-center justify-center rounded-xl text-sm font-semibold transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 disabled:pointer-events-none disabled:opacity-60 h-11 px-4 py-2";
@@ -59,8 +59,8 @@ export default function SignupPage() {
         <div className="rounded-[22px] bg-white/90 px-6 py-7 text-card-foreground">
           <div className="flex flex-col space-y-1.5 text-center">
             <Link href="/" className="mb-4 flex items-center justify-center gap-2">
-              <div className="rounded-xl bg-gradient-to-br from-violet-600 to-cyan-500 p-2 shadow-lg shadow-violet-400/30">
-                <Zap className="size-5 text-white" />
+              <div className="size-10 overflow-hidden rounded-full bg-white shadow-lg shadow-slate-300/40">
+                <img src="/sahyadri.png" alt="Sahyadri logo" className="h-full w-full object-cover" />
               </div>
               <span className="text-2xl font-black tracking-tight text-slate-800">QuizBlitz</span>
             </Link>

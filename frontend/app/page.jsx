@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { GraduationCap, Users, ArrowRight, Zap } from "lucide-react";
+import { GraduationCap, Users, ArrowRight } from "lucide-react";
 const buttonBase = "inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 h-9 px-4 py-2";
 const buttonDefault = `${buttonBase} bg-primary text-primary-foreground shadow hover:bg-primary/90`;
 const buttonOutline = `${buttonBase} border border-input bg-background shadow-sm hover:bg-accent hover:text-accent-foreground`;
@@ -43,8 +43,8 @@ export default function HomePage() {
     return (<main className="student-arcade min-h-screen flex flex-col items-center justify-center p-4">
       <div className="flex flex-col items-center gap-3 mb-10 relative z-10">
         <div className="flex items-center gap-3">
-          <div className="rounded-xl bg-primary p-3 logo-bob">
-            <Zap className="size-8 text-primary-foreground"/>
+          <div className="size-14 overflow-hidden rounded-full bg-white p-1 logo-bob shadow-lg shadow-slate-300/40">
+            <img src="/sahyadri.png" alt="Sahyadri logo" className="h-full w-full object-cover" />
           </div>
           <h1 className="text-4xl font-bold tracking-tight text-foreground md:text-5xl text-balance title-glow">
             QuizBlitz

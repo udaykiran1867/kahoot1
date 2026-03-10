@@ -9,9 +9,9 @@ export const metadata = {
     title: 'QuizBlitz - Real-time Quiz Game',
     description: 'Create and play real-time quizzes with your class. Fast, fun, and engaging.',
     icons: {
-        icon: '/download.jpg',
-        shortcut: '/download.jpg',
-        apple: '/download.jpg',
+        icon: '/sahyadri.png',
+        shortcut: '/sahyadri.png',
+        apple: '/sahyadri.png',
     },
 };
 export const viewport = {
@@ -22,9 +22,9 @@ export const viewport = {
 export default function RootLayout({ children, }) {
     return (<html lang="en">
             <head>
-                <link rel="icon" href="/download.jpg"/>
-                <link rel="shortcut icon" href="/download.jpg"/>
-                <link rel="apple-touch-icon" href="/download.jpg"/>
+                <link rel="icon" href="/sahyadri.png"/>
+                <link rel="shortcut icon" href="/sahyadri.png"/>
+                <link rel="apple-touch-icon" href="/sahyadri.png"/>
             </head>
             <body className="relative font-sans antialiased">
                 <FloatingObjectsBackground />
