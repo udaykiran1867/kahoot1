@@ -17,6 +17,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { QuizCreator } from "@/components/quiz-creator";
+import { AIQuizCreator } from "@/components/ai-quiz-creator";
 import { GameLobby } from "@/components/game-lobby";
 import { GameHistory } from "@/components/game-history";
 
@@ -230,10 +231,14 @@ export default function DashboardPage() {
 
             <section className="rounded-2xl border border-white/50 bg-white/85 p-4 shadow-sm">
               <h3 className="mb-3 text-sm font-semibold text-slate-700">Quick Actions</h3>
-              <div className="grid gap-2 sm:grid-cols-3">
+              <div className="grid gap-2 sm:grid-cols-4">
                 <button className={`${buttonPrimary} justify-start`} onClick={() => setView("create")}>
                   <Plus className="mr-2 size-4" />
                   Create Quiz
+                </button>
+                <button className={`${buttonSoft} justify-start`} onClick={() => setView("ai-create")}>
+                  <Sparkles className="mr-2 size-4" />
+                  AI Creator
                 </button>
                 <button className={`${buttonSoft} justify-start`} onClick={handleImportQuiz}>
                   <Upload className="mr-2 size-4" />
@@ -317,6 +322,16 @@ export default function DashboardPage() {
 
         {view === "create" && (
           <QuizCreator
+            onCreated={() => {
+              mutate("/api/quizzes");
+              setView("list");
+            }}
+            onCancel={() => setView("list")}
+          />
+        )}
+
+        {view === "ai-create" && (
+          <AIQuizCreator
             onCreated={() => {
               mutate("/api/quizzes");
               setView("list");

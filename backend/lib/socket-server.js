@@ -1,7 +1,7 @@
 import { createServer } from "node:http"
 import { Server } from "socket.io"
 
-const SOCKET_PORT = parseInt(process.env.SOCKET_PORT || "3001", 10)
+const SOCKET_PORT = parseInt(process.env.SOCKET_PORT || "4001", 10)
 const globalForSockets = globalThis
 
 function ensureServerTimeTicker() {
