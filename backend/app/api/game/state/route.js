@@ -1,9 +1,25 @@
 import { NextRequest, NextResponse } from "next/server";
 import { redis } from "@/lib/redis";
+
+function sanitizeQuizForState(quiz, revealAnswers) {
+    if (!quiz || !Array.isArray(quiz.questions)) {
+        return quiz;
+    }
+
+    return {
+        ...quiz,
+        questions: quiz.questions.map((question) => ({
+            ...question,
+            correctAnswer: revealAnswers ? question.correctAnswer : null,
+        })),
+    };
+}
+
 export async function GET(req) {
     try {
         const { searchParams } = new URL(req.url);
         const gameId = searchParams.get("gameId");
+        const revealAnswers = searchParams.get("revealAnswers") === "1";
         if (!gameId) {
             return NextResponse.json({ error: "gameId required" }, { status: 400 });
         }
@@ -18,6 +34,7 @@ export async function GET(req) {
                 ? JSON.parse(quizData)
                 : quizData
             : null;
+        const quizForState = sanitizeQuizForState(quiz, game.status === "finished" || revealAnswers);
         const serverNowMs = Date.now();
         const questionStartRaw = await redis.get(`game:${gameId}:questionStart`);
         const quizStartRaw = await redis.get(`game:${gameId}:quizStart`);
@@ -31,7 +48,7 @@ export async function GET(req) {
             : null;
         return NextResponse.json({
             game,
-            quiz,
+            quiz: quizForState,
             timer: {
                 serverNowMs,
                 quizStartMs,

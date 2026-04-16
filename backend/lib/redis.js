@@ -12,7 +12,17 @@ class InMemoryRedis {
     return this.store.has(key) ? this.store.get(key) : null
   }
 
-  async set(key, value) {
+  async set(key, value, options = {}) {
+    const hasKey = this.store.has(key)
+
+    if (options?.nx && hasKey) {
+      return null
+    }
+
+    if (options?.xx && !hasKey) {
+      return null
+    }
+
     this.store.set(key, value)
     return "OK"
   }
@@ -94,9 +104,11 @@ class FileBackedRedis extends InMemoryRedis {
     }
   }
 
-  async set(key, value) {
-    const result = await super.set(key, value)
-    this.#persist()
+  async set(key, value, options = {}) {
+    const result = await super.set(key, value, options)
+    if (result === "OK") {
+      this.#persist()
+    }
     return result
   }
 
@@ -132,9 +144,83 @@ if (upstashUrl && upstashToken && !globalForRedis.__quizblitzRedisClient) {
   globalForRedis.__quizblitzRedisClient = new Redis({ url: upstashUrl, token: upstashToken })
 }
 
-export const redis = upstashUrl && upstashToken
-  ? globalForRedis.__quizblitzRedisClient
-  : globalForRedis.__quizblitzLocalRedis
+function isNetworkRedisError(error) {
+  const code = error?.cause?.code || error?.code
+  if (["ENOTFOUND", "ECONNREFUSED", "ETIMEDOUT", "ECONNRESET"].includes(code)) {
+    return true
+  }
+
+  const message = String(error?.message || "").toLowerCase()
+  return message.includes("fetch failed") || message.includes("network")
+}
+
+class ResilientRedis {
+  constructor(primaryClient, fallbackClient) {
+    this.primary = primaryClient
+    this.fallback = fallbackClient
+    this.warned = false
+    this.primaryUnavailable = false
+  }
+
+  async #run(method, args) {
+    if (this.primaryUnavailable || !this.primary || typeof this.primary[method] !== "function") {
+      return this.fallback[method](...args)
+    }
+
+    try {
+      return await this.primary[method](...args)
+    } catch (error) {
+      if (!isNetworkRedisError(error)) {
+        throw error
+      }
+
+      if (!this.warned) {
+        console.warn(
+          `[Redis] Upstash unavailable. Falling back to local persistent storage at ${localDataPath}`
+        )
+        this.warned = true
+      }
+
+      // Circuit-breaker: avoid paying network timeout on every call.
+      this.primaryUnavailable = true
+
+      return this.fallback[method](...args)
+    }
+  }
+
+  async get(key) {
+    return this.#run("get", [key])
+  }
+
+  async set(key, value, options = {}) {
+    return this.#run("set", [key, value, options])
+  }
+
+  async del(key) {
+    return this.#run("del", [key])
+  }
+
+  async sadd(key, ...members) {
+    return this.#run("sadd", [key, ...members])
+  }
+
+  async smembers(key) {
+    return this.#run("smembers", [key])
+  }
+
+  async srem(key, ...members) {
+    return this.#run("srem", [key, ...members])
+  }
+}
+
+if (!globalForRedis.__quizblitzRedis) {
+  globalForRedis.__quizblitzRedis = new ResilientRedis(
+    upstashUrl && upstashToken ? globalForRedis.__quizblitzRedisClient : null,
+    globalForRedis.__quizblitzLocalRedis
+  )
+}
+
+export const redis = globalForRedis.__quizblitzRedis
 
 if (!upstashUrl || !upstashToken) {
   console.warn("[Redis] Upstash credentials missing. Using local persistent fallback at .local-data/redis-fallback.json")

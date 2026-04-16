@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { redis } from "@/lib/redis";
 import { getSession } from "@/lib/auth";
 import { generatePin } from "@/lib/game-utils";
+import { randomUUID } from "node:crypto";
 export async function POST(req) {
     try {
         const session = await getSession();
@@ -22,7 +23,7 @@ export async function POST(req) {
             existingGame = await redis.get(`game:pin:${pin}`);
             attempts++;
         }
-        const gameId = crypto.randomUUID();
+        const gameId = randomUUID();
         const game = {
             id: gameId,
             quizId: quiz.id,

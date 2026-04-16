@@ -22,6 +22,14 @@ export function initSocketServer() {
     }
   }
 
+  if (globalForSockets.__quizSocketInitAttempted) {
+    return {
+      started: false,
+      port: SOCKET_PORT,
+    }
+  }
+  globalForSockets.__quizSocketInitAttempted = true
+
   const httpServer = createServer((_req, res) => {
     res.writeHead(200, { "Content-Type": "application/json" })
     res.end(JSON.stringify({ ok: true, service: "quiz-socket" }))
@@ -43,10 +51,25 @@ export function initSocketServer() {
     })
   })
 
-  httpServer.listen(SOCKET_PORT)
-  globalForSockets.__quizSocketHttpServer = httpServer
-  globalForSockets.__quizSocketIO = io
-  ensureServerTimeTicker()
+  httpServer.on("error", (error) => {
+    if (error?.code === "EADDRINUSE") {
+      console.warn(`[Socket] Port ${SOCKET_PORT} is already in use. Reusing existing socket server.`)
+      try {
+        io.close()
+      } catch {
+        // Best-effort cleanup only.
+      }
+      return
+    }
+
+    console.error("[Socket] Server error:", error)
+  })
+
+  httpServer.listen(SOCKET_PORT, () => {
+    globalForSockets.__quizSocketHttpServer = httpServer
+    globalForSockets.__quizSocketIO = io
+    ensureServerTimeTicker()
+  })
 
   return {
     started: true,

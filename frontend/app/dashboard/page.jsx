@@ -49,6 +49,7 @@ export default function DashboardPage() {
 
   const [view, setView] = useState("list");
   const [activeGameId, setActiveGameId] = useState(null);
+  const [editingQuiz, setEditingQuiz] = useState(null);
 
   useEffect(() => {
     if (!authLoading && !authData?.user) {
@@ -138,7 +139,8 @@ export default function DashboardPage() {
     router.push("/import");
   }, [router]);
 
-  const handleEditQuiz = useCallback(() => {
+  const handleEditQuiz = useCallback((quiz) => {
+    setEditingQuiz(quiz);
     setView("create");
   }, []);
 
@@ -232,7 +234,13 @@ export default function DashboardPage() {
             <section className="rounded-2xl border border-white/50 bg-white/85 p-4 shadow-sm">
               <h3 className="mb-3 text-sm font-semibold text-slate-700">Quick Actions</h3>
               <div className="grid gap-2 sm:grid-cols-4">
-                <button className={`${buttonPrimary} justify-start`} onClick={() => setView("create")}>
+                <button
+                  className={`${buttonPrimary} justify-start`}
+                  onClick={() => {
+                    setEditingQuiz(null);
+                    setView("create");
+                  }}
+                >
                   <Plus className="mr-2 size-4" />
                   Create Quiz
                 </button>
@@ -265,7 +273,10 @@ export default function DashboardPage() {
                   <p className="text-sm text-slate-600">Create your first quiz and make everyone clap.</p>
                   <button
                     className={`${buttonPrimary} h-12 px-8 text-base animate-[pulse_2.2s_ease-in-out_infinite]`}
-                    onClick={() => setView("create")}
+                    onClick={() => {
+                      setEditingQuiz(null);
+                      setView("create");
+                    }}
                   >
                     <Plus className="mr-2 size-5" />
                     Create Quiz
@@ -299,7 +310,7 @@ export default function DashboardPage() {
                       </button>
 
                       <div className="grid grid-cols-3 gap-2">
-                        <button className={buttonSoft} onClick={handleEditQuiz} title="Edit">
+                        <button className={buttonSoft} onClick={() => handleEditQuiz(quiz)} title="Edit">
                           <Pencil className="mr-1 size-4" />
                           Edit
                         </button>
@@ -322,11 +333,16 @@ export default function DashboardPage() {
 
         {view === "create" && (
           <QuizCreator
+            initialQuiz={editingQuiz}
             onCreated={() => {
               mutate("/api/quizzes");
+              setEditingQuiz(null);
               setView("list");
             }}
-            onCancel={() => setView("list")}
+            onCancel={() => {
+              setEditingQuiz(null);
+              setView("list");
+            }}
           />
         )}
 

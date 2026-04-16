@@ -7,6 +7,10 @@ import { getGameSocket } from "@/lib/socket-client"
 
 const fetcher = (url) => fetch(url).then((r) => r.json())
 
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
 const OPTION_COLORS = [
   "bg-game-red",
   "bg-game-blue",
@@ -30,6 +34,8 @@ export function GameLobby({ gameId, onEnd }) {
   const [serverNowMs, setServerNowMs] = useState(null)
   const [questionStartMs, setQuestionStartMs] = useState(null)
   const [questionDurationMs, setQuestionDurationMs] = useState(null)
+  const [controlPending, setControlPending] = useState(false)
+  const [controlError, setControlError] = useState("")
   const [imagePreviewSrc, setImagePreviewSrc] = useState("")
   const [imagePreviewZoom, setImagePreviewZoom] = useState(1)
   const prevQuestionRef = useRef(-1)
@@ -37,6 +43,7 @@ export function GameLobby({ gameId, onEnd }) {
   const game = data?.game || null
   const quiz = data?.quiz || null
   const timer = data?.timer || null
+  const revealAnswers = game?.status === "finished"
 
   const currentQuestion =
     game && quiz && game.status === "started" && game.currentQuestion >= 0
@@ -137,24 +144,51 @@ export function GameLobby({ gameId, onEnd }) {
 
   const handleControl = useCallback(
     async (action) => {
+      if (controlPending) return
       const resolvedGameId = game?.id || gameId
       if (!resolvedGameId) return
 
-      const response = await fetch("/api/game/control", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ gameId: resolvedGameId, action }),
-      })
+      setControlPending(true)
+      setControlError("")
 
-      if (!response.ok) {
-        const payload = await response.json().catch(() => null)
-        console.error("Game control failed:", payload?.error || response.statusText)
-        return
+      try {
+        const maxAttempts = 3
+
+        for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+          const response = await fetch("/api/game/control", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ gameId: resolvedGameId, action }),
+          })
+
+          if (response.ok) {
+            refreshState()
+            return
+          }
+
+          const payload = await response.json().catch(() => null)
+          const message = payload?.error || response.statusText
+          const isBusyConflict = response.status === 409 && /busy/i.test(String(message || ""))
+
+          if (isBusyConflict && attempt < maxAttempts) {
+            await sleep(100 * attempt)
+            continue
+          }
+
+          setControlError(message || "Failed to control game")
+          if (!isBusyConflict) {
+            console.error("Game control failed:", message)
+          }
+          return
+        }
+      } catch (error) {
+        setControlError("Unable to reach server")
+        console.error("Game control request error:", error)
+      } finally {
+        setControlPending(false)
       }
-
-      refreshState()
     },
-    [game?.id, gameId, refreshState]
+    [controlPending, game?.id, gameId, refreshState]
   )
 
   if (!game || !quiz) {
@@ -193,6 +227,27 @@ export function GameLobby({ gameId, onEnd }) {
 
         <div className="flex justify-center">
           <button onClick={onEnd} className={buttonDefault}>Back to Dashboard</button>
+        </div>
+
+        <div className="rounded-xl border bg-card text-card-foreground shadow">
+          <div className="flex flex-col space-y-1.5 p-6">
+            <h3 className="text-base font-semibold leading-none tracking-tight">Answer Review</h3>
+          </div>
+          <div className="p-6 pt-0 flex flex-col gap-4">
+            {quiz.questions.map((question, index) => {
+              const correctIndex = Number.isInteger(question.correctAnswer) ? question.correctAnswer : null
+              return (
+                <div key={`review-${index}`} className="rounded-lg border p-4">
+                  <p className="font-medium text-foreground">
+                    Q{index + 1}. {question.text}
+                  </p>
+                  <p className="text-sm text-muted-foreground mt-2">
+                    Correct answer: {correctIndex !== null ? `${String.fromCharCode(65 + correctIndex)}. ${question.options?.[correctIndex] || ""}` : "Not available"}
+                  </p>
+                </div>
+              )
+            })}
+          </div>
         </div>
       </div>
     )
@@ -245,18 +300,21 @@ export function GameLobby({ gameId, onEnd }) {
         </div>
 
         <div className="flex gap-2">
-          <button className={buttonOutline} onClick={onEnd}>
+          <button className={buttonOutline} onClick={onEnd} disabled={controlPending}>
             Cancel
           </button>
           <button
             onClick={() => handleControl("start")}
-            disabled={game.players.length === 0}
+            disabled={game.players.length === 0 || controlPending}
             className={`${buttonDefault} gap-2`}
           >
             <Play className="size-4" />
-            Start Game ({game.players.length} players)
+            {controlPending ? "Starting..." : `Start Game (${game.players.length} players)`}
           </button>
         </div>
+        {controlError && (
+          <p className="text-sm text-destructive">{controlError}</p>
+        )}
       </div>
     )
   }
@@ -307,18 +365,21 @@ export function GameLobby({ gameId, onEnd }) {
         </div>
         <div className="flex items-center gap-2">
           {questionNum < totalQuestions ? (
-            <button className={`${buttonDefault} ${buttonSm} gap-1`} onClick={() => handleControl("next")}>
+            <button className={`${buttonDefault} ${buttonSm} gap-1`} onClick={() => handleControl("next")} disabled={controlPending}>
               <SkipForward className="size-4" />
-              Next
+              {controlPending ? "Loading..." : "Next"}
             </button>
           ) : (
-            <button className={`${buttonDefault} ${buttonSm} gap-1`} onClick={() => handleControl("end")}>
+            <button className={`${buttonDefault} ${buttonSm} gap-1`} onClick={() => handleControl("end")} disabled={controlPending}>
               <Square className="size-4" />
-              End Game
+              {controlPending ? "Loading..." : "End Game"}
             </button>
           )}
         </div>
       </div>
+      {controlError && (
+        <p className="text-sm text-destructive">{controlError}</p>
+      )}
 
       {currentQuestion && (
         <div className="rounded-xl border bg-card text-card-foreground shadow">
@@ -347,7 +408,7 @@ export function GameLobby({ gameId, onEnd }) {
                 <div
                   key={i}
                   className={`flex gap-3 rounded-lg p-4 ${hasOptionImages ? "items-start" : "items-center"} ${OPTION_COLORS[i]} ${
-                    i === currentQuestion.correctAnswer ? "ring-2 ring-foreground" : ""
+                    revealAnswers && i === currentQuestion.correctAnswer ? "ring-2 ring-foreground" : ""
                   }`}
                 >
                   <span className="flex items-center justify-center size-8 rounded-md bg-white/20 font-bold text-sm text-white">
@@ -365,7 +426,7 @@ export function GameLobby({ gameId, onEnd }) {
                     />
                   )}
                   <span className="font-medium text-white break-words flex-1">{opt}</span>
-                  {i === currentQuestion.correctAnswer && (
+                  {revealAnswers && i === currentQuestion.correctAnswer && (
                     <Check className="size-5 ml-auto text-white" />
                   )}
                 </div>

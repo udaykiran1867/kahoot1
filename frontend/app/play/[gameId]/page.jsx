@@ -5,6 +5,9 @@ import useSWR from "swr";
 import { Timer, Trophy, Loader2, Flame, Star } from "lucide-react";
 import { getGameSocket } from "@/lib/socket-client";
 const fetcher = (url) => fetch(url).then((r) => r.json());
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
 const OPTION_COLORS = [
     { bg: "bg-game-red hover:bg-game-red/90", text: "text-foreground" },
     { bg: "bg-game-blue hover:bg-game-blue/90", text: "text-primary-foreground" },
@@ -29,10 +32,13 @@ export default function PlayPage({ params }) {
     const [imagePreviewSrc, setImagePreviewSrc] = useState("");
     const [imagePreviewZoom, setImagePreviewZoom] = useState(1);
     const [streak, setStreak] = useState(0);
+    const [impactFeedback, setImpactFeedback] = useState("");
     const [scorePulseIds, setScorePulseIds] = useState([]);
     const prevQuestionRef = useRef(-1);
     const previousScoresRef = useRef(new Map());
     const scorePulseTimeoutRef = useRef(null);
+    const answerInFlightRef = useRef(false);
+    const lastClickPointRef = useRef(null);
     const currentQuestion = game && quiz && game.status === "started" && game.currentQuestion >= 0
         ? quiz.questions[game.currentQuestion] || null
         : null;
@@ -40,7 +46,9 @@ export default function PlayPage({ params }) {
     useEffect(() => {
         if (game && game.currentQuestion !== prevQuestionRef.current) {
             prevQuestionRef.current = game.currentQuestion;
+        answerInFlightRef.current = false;
             setLastResult(null);
+          setImpactFeedback("");
         }
     }, [game, game?.currentQuestion, currentQuestion]);
 
@@ -138,37 +146,80 @@ export default function PlayPage({ params }) {
       window.addEventListener("keydown", handleKeyDown);
       return () => window.removeEventListener("keydown", handleKeyDown);
     }, [imagePreviewSrc]);
-    const handleAnswer = useCallback(async (answerIndex) => {
-        if (!game || answeredQuestions.has(game.currentQuestion) || submitting)
+    const handleAnswer = useCallback(async (answerIndex, clickPoint) => {
+      if (!game)
             return;
+      const currentQuestionIndex = game.currentQuestion;
+      if (answeredQuestions.has(currentQuestionIndex) || submitting || answerInFlightRef.current)
+        return;
+
+      if (clickPoint) {
+        lastClickPointRef.current = clickPoint;
+      }
+
+      answerInFlightRef.current = true;
+      // Optimistically lock this question to avoid double clicks while React state settles.
+      setAnsweredQuestions((prev) => new Set(prev).add(currentQuestionIndex));
         setSubmitting(true);
         try {
-            const res = await fetch("/api/game/answer", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    gameId,
-                    playerId,
-                    questionIndex: game.currentQuestion,
-                    answerIndex,
-                }),
-            });
-            const result = await res.json();
-            if (res.ok) {
-                setAnsweredQuestions((prev) => new Set(prev).add(game.currentQuestion));
-                setLastResult(result);
-              if (result.isCorrect) {
-                setStreak((value) => value + 1);
-              }
-              else {
-                setStreak(0);
-              }
+        const maxAttempts = 3;
+        for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+          const res = await fetch("/api/game/answer", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              gameId,
+              playerId,
+              questionIndex: currentQuestionIndex,
+              answerIndex,
+            }),
+          });
+          const result = await res.json().catch(() => null);
+
+          if (res.ok) {
+            setLastResult(result);
+            if (result?.isCorrect) {
+              setStreak((value) => value + 1);
+              setImpactFeedback("Awesome! 😄");
+            }
+            else {
+              setStreak(0);
+              setImpactFeedback("Try again! 😅");
+            }
+            return;
+          }
+
+          const errorMessage = String(result?.error || "");
+          const isAlreadyAnswered = res.status === 409 && /already answered/i.test(errorMessage);
+          if (isAlreadyAnswered) {
+            // Another request already succeeded; keep question locked and stop retries.
+            return;
+          }
+
+          const isBusy = res.status === 409 && /busy/i.test(errorMessage);
+          if (isBusy && attempt < maxAttempts) {
+            await sleep(100 * attempt);
+            continue;
+          }
+
+          // Unlock only on real failure so student can try again.
+          setAnsweredQuestions((prev) => {
+            const next = new Set(prev);
+            next.delete(currentQuestionIndex);
+            return next;
+          });
+          return;
             }
         }
         catch {
-            // silently fail
+        setAnsweredQuestions((prev) => {
+          const next = new Set(prev);
+          next.delete(currentQuestionIndex);
+          return next;
+        });
         }
         finally {
+        answerInFlightRef.current = false;
             setSubmitting(false);
         }
     }, [game, gameId, playerId, answeredQuestions, submitting]);
@@ -322,6 +373,10 @@ export default function PlayPage({ params }) {
           <div className="timer-fill h-full transition-all duration-300" style={{ width: `${timePercent}%` }}/>
         </div>
 
+        {impactFeedback ? (<div className="cinematic-feedback mb-3 text-center rounded-lg border border-white/35 bg-card/75 backdrop-blur-md px-3 py-2 text-sm font-semibold text-foreground">
+            {impactFeedback}
+          </div>) : null}
+
         {/* Question */}
         {currentQuestion && (<div className="flex flex-col gap-4 flex-1">
             <h2 className="text-xl font-bold text-center text-foreground text-balance py-4">
@@ -349,7 +404,9 @@ export default function PlayPage({ params }) {
               </div>) : (
             // Show answer options
             <div className={`grid gap-3 ${hasOptionImages ? "grid-cols-1" : "grid-cols-1 sm:grid-cols-2"}`}>
-                {currentQuestion.options.map((opt, i) => (<button key={i} onClick={() => handleAnswer(i)} disabled={countdown === 0} className={`arcade-answer-btn flex gap-3 rounded-xl p-5 transition-all active:scale-95 ${hasOptionImages ? "items-start" : "items-center"} ${OPTION_COLORS[i].bg} ${OPTION_COLORS[i].text} disabled:opacity-50 disabled:cursor-not-allowed`}>
+                {currentQuestion.options.map((opt, i) => (<button key={i} onClick={(event) => {
+                    handleAnswer(i, { x: event.clientX, y: event.clientY });
+                  }} disabled={countdown === 0} className={`arcade-answer-btn flex gap-3 rounded-xl p-5 transition-all active:scale-95 ${hasOptionImages ? "items-start" : "items-center"} ${OPTION_COLORS[i].bg} ${OPTION_COLORS[i].text} disabled:opacity-50 disabled:cursor-not-allowed`}>
                     <span className="flex items-center justify-center size-8 rounded-lg bg-background/20 font-bold text-sm">
                       {String.fromCharCode(65 + i)}
                     </span>

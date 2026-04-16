@@ -1,0 +1,2 @@
+email,password,pin,nickname,gameId,action
+professor@example.com,Password123!,123456,Player1,00000000-0000-0000-0000-000000000000,start

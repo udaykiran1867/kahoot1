@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { ArrowLeft, Plus, Trash2, Check } from "lucide-react"
 
 const OPTION_COLORS = [
@@ -19,24 +19,50 @@ const buttonGhost = `${buttonBase} hover:bg-accent hover:text-accent-foreground 
 const inputClass =
   "flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-base shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
 
-export function QuizCreator({ onCreated, onCancel }) {
+export function QuizCreator({ onCreated, onCancel, initialQuiz }) {
   const DEFAULT_TIME_LIMIT = 30
   const MAX_IMAGE_SIZE_BYTES = 2 * 1024 * 1024
   const ALLOWED_IMAGE_TYPES = ["image/png", "image/jpeg", "image/jpg", "image/webp", "image/gif"]
+  const createEmptyQuestion = () => ({
+    text: "",
+    questionImage: "",
+    options: ["", "", "", ""],
+    optionImages: ["", "", "", ""],
+    correctAnswer: 0,
+    timeLimit: String(DEFAULT_TIME_LIMIT),
+  })
   const [title, setTitle] = useState("")
   const [defaultTimeLimit, setDefaultTimeLimit] = useState(String(DEFAULT_TIME_LIMIT))
-  const [questions, setQuestions] = useState([
-    {
-      text: "",
-      questionImage: "",
-      options: ["", "", "", ""],
-      optionImages: ["", "", "", ""],
-      correctAnswer: 0,
-      timeLimit: String(DEFAULT_TIME_LIMIT),
-    },
-  ])
+  const [questions, setQuestions] = useState([createEmptyQuestion()])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
+
+  const isEditing = Boolean(initialQuiz?.id)
+
+  useEffect(() => {
+    if (initialQuiz?.id) {
+      setTitle(initialQuiz.title || "")
+      const normalizedQuestions = Array.isArray(initialQuiz.questions) && initialQuiz.questions.length > 0
+        ? initialQuiz.questions.map((q) => ({
+            text: q.text || "",
+            questionImage: q.questionImage || "",
+            options: Array.from({ length: 4 }, (_, i) => q.options?.[i] || ""),
+            optionImages: Array.from({ length: 4 }, (_, i) => q.optionImages?.[i] || ""),
+            correctAnswer: Number.isInteger(q.correctAnswer) ? q.correctAnswer : 0,
+            timeLimit: String(q.timeLimit || DEFAULT_TIME_LIMIT),
+          }))
+        : [createEmptyQuestion()]
+      setQuestions(normalizedQuestions)
+      setDefaultTimeLimit(String(normalizedQuestions[0]?.timeLimit || DEFAULT_TIME_LIMIT))
+      setError("")
+      return
+    }
+
+    setTitle("")
+    setQuestions([createEmptyQuestion()])
+    setDefaultTimeLimit(String(DEFAULT_TIME_LIMIT))
+    setError("")
+  }, [initialQuiz?.id])
 
   function toClampedTime(value, fallback = DEFAULT_TIME_LIMIT) {
     const parsed = parseInt(String(value), 10)
@@ -47,14 +73,7 @@ export function QuizCreator({ onCreated, onCancel }) {
   function addQuestion() {
     setQuestions([
       ...questions,
-      {
-        text: "",
-        questionImage: "",
-        options: ["", "", "", ""],
-        optionImages: ["", "", "", ""],
-        correctAnswer: 0,
-        timeLimit: defaultTimeLimit || String(DEFAULT_TIME_LIMIT),
-      },
+      { ...createEmptyQuestion(), timeLimit: defaultTimeLimit || String(DEFAULT_TIME_LIMIT) },
     ])
   }
 
@@ -190,19 +209,21 @@ export function QuizCreator({ onCreated, onCancel }) {
     setLoading(true)
     setError("")
     try {
-      const res = await fetch("/api/quizzes", {
-        method: "POST",
+      const endpoint = isEditing ? `/api/quizzes/${initialQuiz.id}` : "/api/quizzes"
+      const res = await fetch(endpoint, {
+        method: isEditing ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({ title, questions: payloadQuestions }),
       })
       if (res.ok) {
         onCreated()
       } else {
         const data = await res.json()
-        setError(data.error || "Failed to create quiz")
+        setError(data.error || (isEditing ? "Failed to update quiz" : "Failed to create quiz"))
       }
     } catch {
-      setError("Failed to create quiz")
+      setError(isEditing ? "Failed to update quiz" : "Failed to create quiz")
     } finally {
       setLoading(false)
     }
@@ -214,7 +235,7 @@ export function QuizCreator({ onCreated, onCancel }) {
         <button className={`${buttonGhost} h-9 w-9 p-0`} onClick={onCancel}>
           <ArrowLeft className="size-5" />
         </button>
-        <h2 className="text-2xl font-bold text-foreground">Create Quiz</h2>
+        <h2 className="text-2xl font-bold text-foreground">{isEditing ? "Edit Quiz" : "Create Quiz"}</h2>
       </div>
 
       <div className="flex flex-col gap-2">
@@ -398,7 +419,9 @@ export function QuizCreator({ onCreated, onCancel }) {
           Cancel
         </button>
         <button className={buttonDefault} onClick={handleSave} disabled={loading}>
-          {loading ? "Saving..." : `Save Quiz (${questions.length} questions)`}
+          {loading
+            ? (isEditing ? "Updating..." : "Saving...")
+            : (isEditing ? `Update Quiz (${questions.length} questions)` : `Save Quiz (${questions.length} questions)`)}
         </button>
       </div>
     </div>

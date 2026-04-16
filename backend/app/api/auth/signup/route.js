@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { redis } from "@/lib/redis";
 import { createSessionToken, setSessionCookie } from "@/lib/auth";
 import bcrypt from "bcryptjs";
+import { randomUUID } from "node:crypto";
 export async function POST(req) {
     try {
         const { name, email, password } = await req.json();
@@ -12,7 +13,7 @@ export async function POST(req) {
         if (existingUser) {
             return NextResponse.json({ error: "Email already registered" }, { status: 409 });
         }
-        const userId = crypto.randomUUID();
+        const userId = randomUUID();
         const hashedPassword = await bcrypt.hash(password, 12);
         const user = {
             id: userId,
