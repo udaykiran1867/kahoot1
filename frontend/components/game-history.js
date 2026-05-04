@@ -2,7 +2,8 @@
 
 import { useCallback, useMemo, useState } from "react"
 import useSWR from "swr"
-import { Users, Trophy, Clock, Eye, Download, X } from "lucide-react"
+import { Users, Trophy, Clock, Eye, Download, X, ClipboardList } from "lucide-react"
+import { ProfessorGameSummary } from "@/components/professor-game-summary";
 
 const fetcher = (url) => fetch(url).then((r) => r.json())
 
@@ -16,6 +17,7 @@ export function GameHistory() {
   const [detailLoading, setDetailLoading] = useState(false)
   const [detailError, setDetailError] = useState("")
   const [detailData, setDetailData] = useState(null)
+  const [summaryGameId, setSummaryGameId] = useState(null);
 
   const openGameDetails = useCallback(async (gameId) => {
     setSelectedGameId(gameId)
@@ -44,6 +46,7 @@ export function GameHistory() {
     setDetailData(null)
     setDetailError("")
   }, [])
+  
 
   const handleDownload = useCallback((gameId) => {
     const anchor = document.createElement("a")
@@ -142,6 +145,13 @@ export function GameHistory() {
                 <Download className="size-4" />
                 Download Excel
               </button>
+              <button
+                className={`${buttonOutline} gap-1.5`}
+                onClick={() => setSummaryGameId(entry.game.id)}
+              >
+                <ClipboardList className="size-4" />
+                Summary
+              </button>
             </div>
           </div>
         ))}
@@ -208,6 +218,7 @@ export function GameHistory() {
                   </table>
                 </div>
               )}
+              
 
               {!detailLoading && !detailError && detailData?.rows?.length === 0 && (
                 <p className="text-sm text-muted-foreground">No student answers available for this game.</p>
@@ -216,6 +227,33 @@ export function GameHistory() {
           </div>
         </div>
       )}
+       {/* ✅ SUMMARY MODAL (PASTE HERE) */}
+      {summaryGameId && (
+        <div
+          className="fixed inset-0 z-50 bg-black/50 p-4 flex items-center justify-center"
+          onClick={() => setSummaryGameId(null)}
+        >
+          <div
+            className="w-full max-w-6xl max-h-[90vh] overflow-auto rounded-xl border bg-white shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* HEADER */}
+            <div className="flex justify-between items-center p-4 border-b">
+              <h2 className="text-lg font-semibold">Game Summary</h2>
+              <button onClick={() => setSummaryGameId(null)}>
+                <X className="size-4" />
+              </button>
+            </div>
+
+            {/* SUMMARY CONTENT */}
+            <div className="p-4">
+              <ProfessorGameSummary gameId={summaryGameId} />
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   )
 }
+   

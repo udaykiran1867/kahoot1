@@ -41,9 +41,9 @@ mcq-generator/
 3. Create a `.env` file from the example and configure Ollama:
    ```text
    OLLAMA_HOST=http://localhost:11434      # or your remote host
-  EMBEDDING_MODEL=nomic-embed-text        # name of embedding model
-  GENERATION_MODEL=llama3.2:1b            # generation model
-  PORT=3001
+   EMBEDDING_MODEL=multi-embed-small       # name of embedding model
+   GENERATION_MODEL=gpt-4o-mini            # generation model
+   PORT=3000
    ```
    > traditional OpenAI API key is **not** required when using Ollama.
 4. Start the server:
@@ -101,34 +101,34 @@ Each question should be returned in JSON with keys question, options, correct_an
 
 Upload text:
 ```bash
-curl -X POST http://localhost:3001/upload \
+curl -X POST http://localhost:3000/upload \
   -H "Content-Type: application/json" \
   -d '{"text":"OpenAI develops AI models."}'
 ```
 
 Upload PDF:
 ```bash
-curl -X POST http://localhost:3001/upload \
+curl -X POST http://localhost:3000/upload \
   -F "file=@/path/to/doc.pdf"
 ```
 
 Generate MCQs (all text):
 ```bash
-curl -X POST http://localhost:3001/generate-mcq \
+curl -X POST http://localhost:3000/generate-mcq \
   -H "Content-Type: application/json" \
   -d '{"count":3}'
 ```
 
 Generate MCQs for a query:
 ```bash
-curl -X POST http://localhost:3001/generate-mcq \
+curl -X POST http://localhost:3000/generate-mcq \
   -H "Content-Type: application/json" \
   -d '{"query":"quantum mechanics"}'
 ```
 
 Retrieve MCQs:
 ```bash
-curl http://localhost:3001/generate-mcq
+curl http://localhost:3000/generate-mcq
 ```
 
 > 💡 Use Postman or any HTTP client; the structure is identical.

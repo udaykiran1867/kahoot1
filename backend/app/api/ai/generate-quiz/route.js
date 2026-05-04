@@ -21,9 +21,9 @@ function normalizeBaseUrl(url) {
 
 function getCandidateMcqBaseUrls() {
   const candidates = [
-    normalizeBaseUrl(process.env.MCQ_GENERATOR_URL),
-    "http://localhost:3001",
-    "http://127.0.0.1:3001",
+    normalizeBaseUrl(process.env.AI_CREATOR_URL),
+    "http://localhost:5050",
+    "http://127.0.0.1:5050",
   ].filter(Boolean);
 
   return [...new Set(candidates)];
@@ -156,7 +156,7 @@ export async function POST(request) {
       try {
         let uploadRes;
         if (hasText) {
-          uploadRes = await fetch(`${mcqBaseUrl}/upload`, {
+          uploadRes = await fetch(`${mcqBaseUrl}/api/upload`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ text: textInput }),
@@ -166,7 +166,7 @@ export async function POST(request) {
           const uploadForm = new FormData();
           uploadForm.append("file", file, file.name || "document.pdf");
 
-          uploadRes = await fetch(`${mcqBaseUrl}/upload`, {
+          uploadRes = await fetch(`${mcqBaseUrl}/api/upload`, {
             method: "POST",
             body: uploadForm,
             cache: "no-store",
@@ -179,7 +179,7 @@ export async function POST(request) {
           continue;
         }
 
-        const generateRes = await fetch(`${mcqBaseUrl}/generate-mcq`, {
+        const generateRes = await fetch(`${mcqBaseUrl}/api/mcq/generate`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ count: questionCount, tone: difficulty }),
@@ -203,10 +203,10 @@ export async function POST(request) {
     if (!rawBody) {
       return NextResponse.json(
         {
-          error: hasText ? "Failed to process text in MCQ generator" : "Failed to process PDF in MCQ generator",
+          error: hasText ? "Failed to process text in AI Creator service" : "Failed to process PDF in AI Creator service",
           details:
             lastError ||
-            "Could not connect to MCQ generator service. Set MCQ_GENERATOR_URL in backend .env (example: http://localhost:3001).",
+            "Could not connect to AI Creator service. Set AI_CREATOR_URL in backend .env (example: http://localhost:3000).",
         },
         { status: 502 }
       );

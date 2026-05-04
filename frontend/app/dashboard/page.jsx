@@ -17,7 +17,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { QuizCreator } from "@/components/quiz-creator";
-import { AIQuizCreator } from "@/components/ai-quiz-creator";
+import { AiCreator } from "@/components/ai-creator";
 import { GameLobby } from "@/components/game-lobby";
 import { GameHistory } from "@/components/game-history";
 
@@ -347,7 +347,7 @@ export default function DashboardPage() {
         )}
 
         {view === "ai-create" && (
-          <AIQuizCreator
+          <AiCreator
             onCreated={() => {
               mutate("/api/quizzes");
               setView("list");
